@@ -1,2 +1,3 @@
 infra/*.local.yaml
 __pycache__/
+firmware/LLMia/wifi_credentials.h

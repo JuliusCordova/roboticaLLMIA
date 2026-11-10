@@ -2,6 +2,10 @@
 
 Prototipo universitario de robótica móvil de la UPN. El firmware base de la ESP32-CAM sirve una interfaz web local para ver la cámara, controlar el robot y consultar la distancia frontal. El proyecto contempla integrar Gemini para describir el entorno a partir de imágenes capturadas por el robot.
 
+## Backend de la FAST DEMO
+
+El [backend local y su simulador](backend/README.md) permiten repetir el flujo de captura y descripción. El alcance y los criterios de aceptación están en la [especificación PA-SDD](specs/SPEC.md).
+
 ## Montaje del prototipo
 
 ![Prototipo LLMia con la ESP32-CAM montada en el chasis, la placa de control de motores y el sensor ultrasónico frontal](docs/evidencias/llmia-montaje-2026-11-10.jpg)

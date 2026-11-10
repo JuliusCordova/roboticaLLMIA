@@ -16,6 +16,10 @@ from .core import DescribeScene, Observation, Rejected, RepositoryUnavailable, S
 from .firebase_auth import AuthUnavailable, InvalidCredential, firebase_verifier
 from .local import MemoryImages, MemoryObservations, SimulatedDescriber
 
+CLOUD_PROJECT = "proyectopersonal-480420"
+CLOUD_DATABASE = "llmia-demo"
+CLOUD_IMAGE_BUCKET = f"{CLOUD_PROJECT}-llmia-images"
+
 MAX_JPEG = 512 * 1024
 MAX_PIXELS = 2_100_000
 ERRORS = {
@@ -196,11 +200,10 @@ def create_app():
         project = environ.get("LLMIA_CLOUD_PROJECT", "").strip()
         database = environ.get("LLMIA_FIRESTORE_DATABASE", "").strip()
         bucket = environ.get("LLMIA_IMAGE_BUCKET", "").strip()
-        if (mode != "firebase" or not project or project != auth_project
-                or project == "proyectopersonal-480420"
-                or database != "llmia-demo" or not bucket.startswith(f"{project}-llmia-")
+        if (mode != "firebase" or project != CLOUD_PROJECT or project != auth_project
+                or database != CLOUD_DATABASE or bucket != CLOUD_IMAGE_BUCKET
                 or environ.get("FIRESTORE_EMULATOR_HOST") or environ.get("STORAGE_EMULATOR_HOST")):
-            raise RuntimeError("Se requiere el proyecto dedicado de LLMia, la base llmia-demo y su bucket privado.")
+            raise RuntimeError("Cloud Run debe usar el proyecto aprobado, la base llmia-demo y el bucket exclusivo de LLMia.")
         from .cloud import cloud_adapters
 
         repository, images = cloud_adapters(project, database, bucket)

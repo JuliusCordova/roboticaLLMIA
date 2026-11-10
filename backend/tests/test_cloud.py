@@ -11,6 +11,18 @@ from llmia.http import create_app, local_app
 from llmia.local import MemoryImages, MemoryObservations, SimulatedDescriber
 
 
+APPROVED_CLOUD = {
+    "LLMIA_AUTH_MODE": "firebase",
+    "LLMIA_STORAGE_MODE": "gcp",
+    "LLMIA_FIREBASE_PROJECT_ID": "proyectopersonal-480420",
+    "LLMIA_CLOUD_PROJECT": "proyectopersonal-480420",
+    "LLMIA_IMAGE_BUCKET": "proyectopersonal-480420-llmia-images",
+    "LLMIA_FIRESTORE_DATABASE": "llmia-demo",
+    "LLMIA_ALLOWED_UIDS": "operator",
+    "LLMIA_DEVICE_TOKEN": "temporary-test-device-token",
+}
+
+
 class CloudConfigurationTests(TestCase):
     def test_cloud_run_refuses_local_defaults(self):
         with patch.dict("os.environ", {"K_SERVICE": "llmia-demo"}, clear=True):
@@ -18,30 +30,38 @@ class CloudConfigurationTests(TestCase):
                 create_app()
 
     def test_cloud_refuses_wrong_project_database_bucket_and_emulators(self):
-        base = {
-            "LLMIA_AUTH_MODE": "firebase",
-            "LLMIA_STORAGE_MODE": "gcp",
-            "LLMIA_FIREBASE_PROJECT_ID": "llmia-dedicated",
-            "LLMIA_CLOUD_PROJECT": "llmia-dedicated",
-            "LLMIA_IMAGE_BUCKET": "llmia-dedicated-llmia-images",
-            "LLMIA_FIRESTORE_DATABASE": "llmia-demo",
-            "LLMIA_ALLOWED_UIDS": "operator",
-            "LLMIA_DEVICE_TOKEN": "temporary-test-device-token",
-        }
         for changes in (
             {"LLMIA_FIRESTORE_DATABASE": "(default)"},
             {"LLMIA_FIRESTORE_DATABASE": "smartroute"},
-            {"LLMIA_IMAGE_BUCKET": "different-project-llmia-images"},
+            {"LLMIA_FIRESTORE_DATABASE": "gestioncitas"},
+            {"LLMIA_IMAGE_BUCKET": "proyectopersonal-480420.firebasestorage.app"},
+            {"LLMIA_IMAGE_BUCKET": "proyectopersonal-480420-llmia-other"},
             {"LLMIA_FIREBASE_PROJECT_ID": "different-project"},
             {"FIRESTORE_EMULATOR_HOST": "localhost:8081"},
             {"STORAGE_EMULATOR_HOST": "localhost:4443"},
-            {"LLMIA_CLOUD_PROJECT": "proyectopersonal-480420",
-             "LLMIA_FIREBASE_PROJECT_ID": "proyectopersonal-480420",
-             "LLMIA_IMAGE_BUCKET": "proyectopersonal-480420-llmia-images"},
+            {"LLMIA_CLOUD_PROJECT": "different-project",
+             "LLMIA_FIREBASE_PROJECT_ID": "different-project",
+             "LLMIA_IMAGE_BUCKET": "different-project-llmia-images"},
         ):
-            with self.subTest(changes=changes), patch.dict("os.environ", {**base, **changes}, clear=True):
-                with self.assertRaisesRegex(RuntimeError, "proyecto dedicado"):
+            with self.subTest(changes=changes), patch.dict("os.environ", {**APPROVED_CLOUD, **changes}, clear=True):
+                with self.assertRaisesRegex(RuntimeError, "proyecto aprobado"):
                     create_app()
+
+    def test_shared_project_connects_only_to_approved_llmia_resources(self):
+        try:
+            import llmia.cloud
+        except ImportError:
+            self.skipTest("Install requirements-cloud.txt to exercise the Google SDK adapters.")
+        with patch.dict("os.environ", APPROVED_CLOUD, clear=True):
+            with patch("llmia.cloud.cloud_adapters", return_value=(MemoryObservations(), MemoryImages())) as cloud:
+                with patch("llmia.http.firebase_verifier", return_value=lambda _: ("operator", True)) as firebase:
+                    app = create_app()
+            cloud.assert_called_once_with("proyectopersonal-480420", "llmia-demo",
+                                          "proyectopersonal-480420-llmia-images")
+            firebase.assert_called_once_with("proyectopersonal-480420", frozenset({"operator"}))
+            with TestClient(app) as client:
+                self.assertEqual(client.get("/health").status_code, 200)
+                self.assertEqual(client.get("/api/v1/robots/llmia-01/status").status_code, 401)
 
     def test_static_frontend_and_protected_api_share_origin(self):
         with TemporaryDirectory() as directory:

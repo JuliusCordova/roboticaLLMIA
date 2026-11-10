@@ -1,0 +1,3 @@
+title: LLMiaFirestoreDbOnly
+description: Acceso exclusivo a la base Firestore llmia-demo
+expression: "resource.name == 'projects/proyectopersonal-480420/databases/llmia-demo'"

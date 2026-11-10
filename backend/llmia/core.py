@@ -5,6 +5,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from enum import StrEnum
 from hashlib import sha256
+import logging
 from typing import Callable, Protocol, TypeVar
 from uuid import uuid4
 
@@ -18,12 +19,23 @@ class Status(StrEnum):
     EXPIRED = "VENCIDA"
 
 
+logger = logging.getLogger(__name__)
+
+
 ACTIVE = frozenset({Status.PENDING, Status.CLAIMED, Status.ANALYZING})
 
 
 class Rejected(Exception):
     def __init__(self, code: str):
         self.code = code
+
+
+class RepositoryUnavailable(Exception):
+    pass
+
+
+class ImageUnavailable(Exception):
+    pass
 
 
 @dataclass(frozen=True)
@@ -83,6 +95,13 @@ class DescribeScene:
     online_window: timedelta = timedelta(seconds=10)
     demo_record_limit: int = 16
 
+    def discard_image(self, job_id: str) -> None:
+        try:
+            self.images.delete(job_id)
+        except ImageUnavailable:
+            # Cloud Storage lifecycle is the backup cleanup mechanism.
+            logger.warning("observation_image_cleanup_failed id=%s", job_id)
+
     def status(self, robot: str) -> tuple[bool, datetime | None, Status | None]:
         def op(state: RobotState):
             now = self.now()
@@ -108,7 +127,7 @@ class DescribeScene:
             return job, removed
         job, removed = self.repository.transact(robot, op)
         if removed:
-            self.images.delete(removed)
+            self.discard_image(removed)
         return job
 
     def poll(self, robot: str) -> Observation | None:
@@ -135,7 +154,10 @@ class DescribeScene:
         job = self.get(robot, owner, job_id)
         if job.status != Status.READY:
             raise Rejected("image_not_ready")
-        jpeg = self.images.get(job_id)
+        try:
+            jpeg = self.images.get(job_id)
+        except ImageUnavailable as exc:
+            raise Rejected("image_unavailable") from exc
         if jpeg is None:
             raise Rejected("image_not_found")
         return jpeg
@@ -169,6 +191,8 @@ class DescribeScene:
             description = self.describer.describe(jpeg).strip()
             if not description:
                 error = "description_unavailable"
+        except ImageUnavailable:
+            error = "image_unavailable"
         except Exception:
             error = "description_unavailable"
 
@@ -188,5 +212,5 @@ class DescribeScene:
 
         result = self.repository.transact(robot, complete)
         if result.status != Status.READY:
-            self.images.delete(job_id)
+            self.discard_image(job_id)
         return result

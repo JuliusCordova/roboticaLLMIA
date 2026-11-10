@@ -4,6 +4,8 @@ const messages = {
   capture_already_active: 'Ya hay una captura en curso. Intenta de nuevo en unos segundos.',
   authentication_unavailable: 'La verificación de acceso no está disponible.',
   capture_timeout: 'El robot no completó la captura a tiempo. Intenta de nuevo.',
+  image_unavailable: 'El almacenamiento de la cámara no está disponible.',
+  storage_unavailable: 'No se pudo consultar el estado de la solicitud. Intenta de nuevo.',
   description_unavailable: 'No se pudo generar la descripción. Intenta otra captura.',
 };
 

@@ -3,6 +3,7 @@ from io import BytesIO
 from os import environ
 from sys import argv
 from time import sleep
+from urllib.parse import urlsplit
 
 import httpx
 from PIL import Image
@@ -46,9 +47,16 @@ def main():
 
 
 def listen():
+    base_url = environ.get("LLMIA_API_URL", "http://127.0.0.1:8000")
+    parsed = urlsplit(base_url)
+    if (not parsed.hostname or parsed.username is not None or parsed.password is not None
+            or parsed.query or parsed.fragment or parsed.path not in ("", "/")
+            or not (parsed.scheme == "https" or (parsed.scheme == "http" and parsed.hostname in ("localhost", "127.0.0.1")))):
+        raise ValueError("LLMIA_API_URL debe ser un origen HTTPS o localhost.")
+
     device = {"Authorization": f"Bearer {environ['LLMIA_DEVICE_TOKEN']}"}
     color = "red"
-    with httpx.Client(base_url="http://127.0.0.1:8000", timeout=5, trust_env=False) as client:
+    with httpx.Client(base_url=base_url, timeout=15, trust_env=False) as client:
         print("Robot simulado conectado. Ctrl+C para detener.", flush=True)
         while True:
             response = client.post("/device/v1/poll", headers=device)
@@ -64,7 +72,7 @@ def listen():
                     upload.raise_for_status()
                     print(f"{job['id']} {upload.json()['status']} ({color})", flush=True)
                     color = "blue" if color == "red" else "red"
-            sleep(1)
+            sleep(2)
 
 
 if __name__ == "__main__":

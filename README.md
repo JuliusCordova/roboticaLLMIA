@@ -4,7 +4,7 @@ Prototipo universitario de robótica móvil de la UPN. El firmware base de la ES
 
 ## Panel y backend de la FAST DEMO
 
-El [panel React](frontend/README.md) y el [backend local con simulador](backend/README.md) permiten probar el flujo de captura y descripción. FastAPI puede verificar usuarios de Firebase Auth; el despliegue en Cloud Run queda pendiente. El alcance y los criterios de aceptación están en la [especificación PA-SDD](specs/SPEC.md).
+El [panel React](frontend/README.md) y el [backend local con simulador](backend/README.md) permiten probar el flujo de captura y descripción. El [runbook de Cloud Run](infra/README.md) prepara el despliegue en un proyecto independiente, con Firebase Auth, Firestore y Cloud Storage. Falta verificarlo en GCP. El alcance y los criterios de aceptación están en la [especificación PA-SDD](specs/SPEC.md).
 
 ## Montaje del prototipo
 

@@ -2,15 +2,17 @@
 from datetime import UTC, datetime
 from io import BytesIO
 from os import environ
+from pathlib import Path
 from secrets import compare_digest
 from typing import Callable
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from starlette.concurrency import run_in_threadpool
 
-from .core import DescribeScene, Observation, Rejected, Status
+from .core import DescribeScene, Observation, Rejected, RepositoryUnavailable, Status
 from .firebase_auth import AuthUnavailable, InvalidCredential, firebase_verifier
 from .local import MemoryImages, MemoryObservations, SimulatedDescriber
 
@@ -23,6 +25,7 @@ ERRORS = {
     "observation_not_found": 404,
     "image_not_found": 404,
     "image_not_ready": 409,
+    "image_unavailable": 503,
 }
 
 
@@ -43,12 +46,17 @@ def http_app(
     robot_id: str,
     verify_operator: Callable[[str], tuple[str, bool]],
     device_token: str,
+    static_dir: Path | None = None,
 ):
     app = FastAPI(title="LLMia FAST DEMO · Simulación local")
 
     @app.exception_handler(Rejected)
     async def handle_error(_request, exc):
         return JSONResponse({"detail": exc.code}, status_code=ERRORS[exc.code])
+
+    @app.exception_handler(RepositoryUnavailable)
+    async def unavailable(_request, _exc):
+        return JSONResponse({"detail": "storage_unavailable"}, status_code=503)
 
     def token(request: Request) -> str:
         scheme, _, value = request.headers.get("Authorization", "").partition(" ")
@@ -132,6 +140,15 @@ def http_app(
 
         return await run_in_threadpool(receive)
 
+    if static_dir is not None:
+        if not (static_dir / "index.html").is_file() or not (static_dir / "assets").is_dir():
+            raise RuntimeError("No se encontró el frontend compilado.")
+        app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
+
+        @app.get("/", include_in_schema=False)
+        def index():
+            return FileResponse(static_dir / "index.html", headers={"Cache-Control": "no-cache"})
+
     return app
 
 
@@ -140,6 +157,7 @@ def local_app(
     robot_id: str,
     operators: dict[str, tuple[str, frozenset[str]]],
     device_token: str,
+    static_dir: Path | None = None,
 ):
     def verify(credential: str):
         for expected, (owner, allowed_robots) in operators.items():
@@ -147,7 +165,7 @@ def local_app(
                 return owner, robot_id in allowed_robots
         raise InvalidCredential
 
-    return http_app(use_case, robot_id, verify, device_token)
+    return http_app(use_case, robot_id, verify, device_token, static_dir)
 
 
 def valid_local_token(value: str) -> bool:
@@ -156,20 +174,44 @@ def valid_local_token(value: str) -> bool:
 
 def create_app():
     mode = environ.get("LLMIA_AUTH_MODE", "local")
+    storage_mode = environ.get("LLMIA_STORAGE_MODE", "memory")
+    static = environ.get("LLMIA_STATIC_DIR", "").strip()
+    static_dir = Path(static) if static else None
+    if mode not in ("local", "firebase") or storage_mode not in ("memory", "gcp"):
+        raise RuntimeError("Modo de autenticación o almacenamiento desconocido.")
+    if environ.get("K_SERVICE") and (mode != "firebase" or storage_mode != "gcp" or static_dir is None):
+        raise RuntimeError("Cloud Run requiere Firebase, almacenamiento GCP y frontend compilado.")
+
     device_token = environ.get("LLMIA_DEVICE_TOKEN", "")
     if not valid_local_token(device_token):
         raise RuntimeError("Configura LLMIA_DEVICE_TOKEN con al menos 24 caracteres ASCII sin espacios.")
-    robot = "llmia-01"
-    use_case = DescribeScene(MemoryObservations(), MemoryImages(), SimulatedDescriber(), lambda: datetime.now(UTC))
+
     if mode == "firebase":
-        project = environ.get("LLMIA_FIREBASE_PROJECT_ID", "").strip()
+        auth_project = environ.get("LLMIA_FIREBASE_PROJECT_ID", "").strip()
         uids = frozenset(uid.strip() for uid in environ.get("LLMIA_ALLOWED_UIDS", "").split(",") if uid.strip())
-        if not project or not uids or environ.get("FIREBASE_AUTH_EMULATOR_HOST"):
+        if not auth_project or not uids or environ.get("FIREBASE_AUTH_EMULATOR_HOST"):
             raise RuntimeError("Firebase requiere un proyecto real y UIDs permitidos; el emulador está deshabilitado.")
-        return http_app(use_case, robot, firebase_verifier(project, uids), device_token)
-    if mode != "local":
-        raise RuntimeError("LLMIA_AUTH_MODE debe ser local o firebase.")
+
+    if storage_mode == "gcp":
+        project = environ.get("LLMIA_CLOUD_PROJECT", "").strip()
+        database = environ.get("LLMIA_FIRESTORE_DATABASE", "").strip()
+        bucket = environ.get("LLMIA_IMAGE_BUCKET", "").strip()
+        if (mode != "firebase" or not project or project != auth_project
+                or project == "proyectopersonal-480420"
+                or database != "llmia-demo" or not bucket.startswith(f"{project}-llmia-")
+                or environ.get("FIRESTORE_EMULATOR_HOST") or environ.get("STORAGE_EMULATOR_HOST")):
+            raise RuntimeError("Se requiere el proyecto dedicado de LLMia, la base llmia-demo y su bucket privado.")
+        from .cloud import cloud_adapters
+
+        repository, images = cloud_adapters(project, database, bucket)
+    else:
+        repository, images = MemoryObservations(), MemoryImages()
+
+    robot = "llmia-01"
+    use_case = DescribeScene(repository, images, SimulatedDescriber(), lambda: datetime.now(UTC))
+    if mode == "firebase":
+        return http_app(use_case, robot, firebase_verifier(auth_project, uids), device_token, static_dir)
     operator_token = environ.get("LLMIA_OPERATOR_TOKEN", "")
     if not valid_local_token(operator_token) or operator_token == device_token:
         raise RuntimeError("Configura LLMIA_OPERATOR_TOKEN con un valor distinto al del dispositivo.")
-    return local_app(use_case, robot, {operator_token: ("operador-local", frozenset({robot}))}, device_token)
+    return local_app(use_case, robot, {operator_token: ("operador-local", frozenset({robot}))}, device_token, static_dir)

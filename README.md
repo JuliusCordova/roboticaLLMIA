@@ -2,9 +2,9 @@
 
 Prototipo universitario de robótica móvil de la UPN. El firmware base de la ESP32-CAM sirve una interfaz web local para ver la cámara, controlar el robot y consultar la distancia frontal. El proyecto contempla integrar Gemini para describir el entorno a partir de imágenes capturadas por el robot.
 
-## Backend de la FAST DEMO
+## Panel y backend de la FAST DEMO
 
-El [backend local y su simulador](backend/README.md) permiten repetir el flujo de captura y descripción. El alcance y los criterios de aceptación están en la [especificación PA-SDD](specs/SPEC.md).
+El [panel React](frontend/README.md) y el [backend local con simulador](backend/README.md) permiten probar el flujo de captura y descripción. FastAPI puede verificar usuarios de Firebase Auth; el despliegue en Cloud Run queda pendiente. El alcance y los criterios de aceptación están en la [especificación PA-SDD](specs/SPEC.md).
 
 ## Montaje del prototipo
 

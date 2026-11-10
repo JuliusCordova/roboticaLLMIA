@@ -1,6 +1,8 @@
 """Run a complete local observation with the same HTTP contract as the robot."""
 from io import BytesIO
 from os import environ
+from sys import argv
+from time import sleep
 
 import httpx
 from PIL import Image
@@ -43,5 +45,33 @@ def main():
             print(f"{job_id} {result['status']} {result['description']}")
 
 
+def listen():
+    device = {"Authorization": f"Bearer {environ['LLMIA_DEVICE_TOKEN']}"}
+    color = "red"
+    with httpx.Client(base_url="http://127.0.0.1:8000", timeout=5, trust_env=False) as client:
+        print("Robot simulado conectado. Ctrl+C para detener.", flush=True)
+        while True:
+            response = client.post("/device/v1/poll", headers=device)
+            response.raise_for_status()
+            if response.status_code != 204:
+                job = response.json()
+                upload = client.put(
+                    f"/device/v1/observations/{job['id']}/capture",
+                    content=scene(color),
+                    headers={**device, "Content-Type": "image/jpeg"},
+                )
+                if upload.status_code != 410:
+                    upload.raise_for_status()
+                    print(f"{job['id']} {upload.json()['status']} ({color})", flush=True)
+                    color = "blue" if color == "red" else "red"
+            sleep(1)
+
+
 if __name__ == "__main__":
-    main()
+    if argv[1:] == ["--listen"]:
+        try:
+            listen()
+        except KeyboardInterrupt:
+            pass
+    else:
+        main()

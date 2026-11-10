@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from io import BytesIO
 from os import environ
 from secrets import compare_digest
+from typing import Callable
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -10,6 +11,7 @@ from PIL import Image
 from starlette.concurrency import run_in_threadpool
 
 from .core import DescribeScene, Observation, Rejected, Status
+from .firebase_auth import AuthUnavailable, InvalidCredential, firebase_verifier
 from .local import MemoryImages, MemoryObservations, SimulatedDescriber
 
 MAX_JPEG = 512 * 1024
@@ -36,10 +38,10 @@ def payload(job: Observation):
     }
 
 
-def local_app(
+def http_app(
     use_case: DescribeScene,
     robot_id: str,
-    operators: dict[str, tuple[str, frozenset[str]]],
+    verify_operator: Callable[[str], tuple[str, bool]],
     device_token: str,
 ):
     app = FastAPI(title="LLMia FAST DEMO · Simulación local")
@@ -55,12 +57,15 @@ def local_app(
         return value
 
     def operator(credential: str = Depends(token)):
-        for expected, (owner, allowed_robots) in operators.items():
-            if compare_digest(credential, expected):
-                if robot_id not in allowed_robots:
-                    raise HTTPException(403, "robot_forbidden")
-                return owner
-        raise HTTPException(401, "invalid_operator_token")
+        try:
+            owner, allowed = verify_operator(credential)
+        except InvalidCredential as exc:
+            raise HTTPException(401, "invalid_operator_token", headers={"WWW-Authenticate": "Bearer"}) from exc
+        except AuthUnavailable as exc:
+            raise HTTPException(503, "authentication_unavailable") from exc
+        if not allowed:
+            raise HTTPException(403, "robot_forbidden")
+        return owner
 
     def device(credential: str = Depends(token)):
         if not compare_digest(credential, device_token):
@@ -130,12 +135,41 @@ def local_app(
     return app
 
 
+def local_app(
+    use_case: DescribeScene,
+    robot_id: str,
+    operators: dict[str, tuple[str, frozenset[str]]],
+    device_token: str,
+):
+    def verify(credential: str):
+        for expected, (owner, allowed_robots) in operators.items():
+            if compare_digest(credential, expected):
+                return owner, robot_id in allowed_robots
+        raise InvalidCredential
+
+    return http_app(use_case, robot_id, verify, device_token)
+
+
+def valid_local_token(value: str) -> bool:
+    return len(value) >= 24 and value.isascii() and value.isprintable() and " " not in value
+
+
 def create_app():
-    operator_token = environ.get("LLMIA_OPERATOR_TOKEN", "")
+    mode = environ.get("LLMIA_AUTH_MODE", "local")
     device_token = environ.get("LLMIA_DEVICE_TOKEN", "")
-    if (any(len(t) < 24 or not t.isascii() or not t.isprintable() or " " in t
-            for t in (operator_token, device_token)) or operator_token == device_token):
-        raise RuntimeError("Configura dos tokens ASCII distintos, sin espacios y de al menos 24 caracteres.")
+    if not valid_local_token(device_token):
+        raise RuntimeError("Configura LLMIA_DEVICE_TOKEN con al menos 24 caracteres ASCII sin espacios.")
     robot = "llmia-01"
     use_case = DescribeScene(MemoryObservations(), MemoryImages(), SimulatedDescriber(), lambda: datetime.now(UTC))
+    if mode == "firebase":
+        project = environ.get("LLMIA_FIREBASE_PROJECT_ID", "").strip()
+        uids = frozenset(uid.strip() for uid in environ.get("LLMIA_ALLOWED_UIDS", "").split(",") if uid.strip())
+        if not project or not uids or environ.get("FIREBASE_AUTH_EMULATOR_HOST"):
+            raise RuntimeError("Firebase requiere un proyecto real y UIDs permitidos; el emulador está deshabilitado.")
+        return http_app(use_case, robot, firebase_verifier(project, uids), device_token)
+    if mode != "local":
+        raise RuntimeError("LLMIA_AUTH_MODE debe ser local o firebase.")
+    operator_token = environ.get("LLMIA_OPERATOR_TOKEN", "")
+    if not valid_local_token(operator_token) or operator_token == device_token:
+        raise RuntimeError("Configura LLMIA_OPERATOR_TOKEN con un valor distinto al del dispositivo.")
     return local_app(use_case, robot, {operator_token: ("operador-local", frozenset({robot}))}, device_token)

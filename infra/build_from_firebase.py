@@ -61,8 +61,10 @@ def load_config(token):
     config = read_json(f"https://firebase.googleapis.com/v1beta1/{quote(name, safe='/:')}/config", token)
     validate_config(config)
     public = read_json(f"https://identitytoolkit.googleapis.com/v1/projects?{urlencode({'key': config['apiKey']})}")
-    if str(public.get("projectNumber")) != PROJECT_NUMBER:
-        raise RuntimeError("El apiKey no corresponde al proyecto aprobado.")
+    # Identity Toolkit getProjects exposes projectId, not projectNumber.
+    # Its legacy response can identify the project by ID or numeric ID.
+    if str(public.get("projectId")) not in (PROJECT, PROJECT_NUMBER):
+        raise RuntimeError("La configuración pública de Firebase no corresponde al proyecto aprobado.")
     if PUBLIC_HOST not in public.get("authorizedDomains", []):
         raise RuntimeError("El dominio de Cloud Run aún no está autorizado en Firebase.")
     return config

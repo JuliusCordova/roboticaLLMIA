@@ -24,7 +24,7 @@ class FirebaseBuildTests(TestCase):
         responses = [
             {"apps": [{"displayName": "llmia-web", "state": "ACTIVE", "name": f"projects/{build.PROJECT}/webApps/test"}]},
             config(),
-            {"projectNumber": build.PROJECT_NUMBER, "authorizedDomains": [build.PUBLIC_HOST]},
+            {"projectId": build.PROJECT_NUMBER, "authorizedDomains": [build.PUBLIC_HOST]},
         ]
         with patch.object(build, "read_json", side_effect=responses):
             self.assertEqual(build.load_config("temporary-token"), config())
@@ -32,7 +32,21 @@ class FirebaseBuildTests(TestCase):
     def test_stops_before_build_if_public_firebase_validation_fails(self):
         with patch.object(build, "read_json", side_effect=[
             {"apps": [{"displayName": "llmia-web", "name": f"projects/{build.PROJECT}/webApps/test"}]},
-            config(), {"projectNumber": build.PROJECT_NUMBER, "authorizedDomains": []},
+            config(), {"projectId": build.PROJECT_NUMBER, "authorizedDomains": []},
         ]):
             with self.assertRaisesRegex(RuntimeError, "dominio"):
                 build.load_config("temporary-token")
+
+    def test_accepts_text_project_id_and_rejects_other_or_missing_project(self):
+        for project in (build.PROJECT, "another-project", None):
+            with self.subTest(project=project):
+                responses = [
+                    {"apps": [{"displayName": "llmia-web", "name": f"projects/{build.PROJECT}/webApps/test"}]},
+                    config(), {"projectId": project, "authorizedDomains": [build.PUBLIC_HOST]},
+                ]
+                with patch.object(build, "read_json", side_effect=responses):
+                    if project == build.PROJECT:
+                        self.assertEqual(build.load_config("temporary-token"), config())
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "proyecto aprobado"):
+                            build.load_config("temporary-token")

@@ -14,6 +14,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .core import DescribeScene, Observation, Rejected, RepositoryUnavailable, Status
 from .firebase_auth import AuthUnavailable, InvalidCredential, firebase_verifier
+from .gemini import LOCATION as GEMINI_LOCATION, MODEL as GEMINI_MODEL, VertexGeminiDescriber, vertex_describer
 from .local import MemoryImages, MemoryObservations, SimulatedDescriber
 
 CLOUD_PROJECT = "proyectopersonal-480420"
@@ -89,7 +90,7 @@ def http_app(
 
     @app.get("/health")
     def health():
-        return {"status": "ok", "mode": "simulator"}
+        return {"status": "ok", "mode": "gemini" if isinstance(use_case.describer, VertexGeminiDescriber) else "simulator"}
 
     @app.get("/api/v1/robots/{robot_id}/status")
     def robot_status(request: Request, _owner: str = Depends(operator)):
@@ -179,12 +180,21 @@ def valid_local_token(value: str) -> bool:
 def create_app():
     mode = environ.get("LLMIA_AUTH_MODE", "local")
     storage_mode = environ.get("LLMIA_STORAGE_MODE", "memory")
+    vision_mode = environ.get("LLMIA_VISION_MODE", "simulator")
     static = environ.get("LLMIA_STATIC_DIR", "").strip()
     static_dir = Path(static) if static else None
     if mode not in ("local", "firebase") or storage_mode not in ("memory", "gcp"):
         raise RuntimeError("Modo de autenticación o almacenamiento desconocido.")
     if environ.get("K_SERVICE") and (mode != "firebase" or storage_mode != "gcp" or static_dir is None):
         raise RuntimeError("Cloud Run requiere Firebase, almacenamiento GCP y frontend compilado.")
+
+    if vision_mode not in ("simulator", "gemini") or (vision_mode == "gemini" and storage_mode != "gcp"):
+        raise RuntimeError("Gemini solo puede activarse con la configuración GCP de LLMia.")
+
+    model = environ.get("LLMIA_GEMINI_MODEL", GEMINI_MODEL)
+    location = environ.get("LLMIA_GEMINI_LOCATION", GEMINI_LOCATION)
+    if vision_mode == "gemini" and (model, location) != (GEMINI_MODEL, GEMINI_LOCATION):
+        raise RuntimeError("Modelo o ubicación de Gemini no admitidos por esta demo.")
 
     device_token = environ.get("LLMIA_DEVICE_TOKEN", "")
     if not valid_local_token(device_token):
@@ -211,7 +221,8 @@ def create_app():
         repository, images = MemoryObservations(), MemoryImages()
 
     robot = "llmia-01"
-    use_case = DescribeScene(repository, images, SimulatedDescriber(), lambda: datetime.now(UTC))
+    describer = vertex_describer(project, model, location) if vision_mode == "gemini" else SimulatedDescriber()
+    use_case = DescribeScene(repository, images, describer, lambda: datetime.now(UTC))
     if mode == "firebase":
         return http_app(use_case, robot, firebase_verifier(auth_project, uids), device_token, static_dir)
     operator_token = environ.get("LLMIA_OPERATOR_TOKEN", "")

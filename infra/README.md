@@ -12,7 +12,7 @@ LLMia comparte el proyecto `proyectopersonal-480420` con SmartRoute AI. Los recu
 | Secret Manager | `llmia-device-token` |
 | App web Firebase | `llmia-web` |
 
-El backend fija el proyecto, la base y el bucket anteriores. Rechaza `(default)`, `smartroute`, `gestioncitas` y el bucket predeterminado. El contenedor sirve React y FastAPI. La placa y Gemini todavía se simulan.
+El backend fija el proyecto, la base y el bucket anteriores. Rechaza `(default)`, `smartroute`, `gestioncitas` y el bucket predeterminado. El contenedor sirve React y FastAPI. La placa se simula y Gemini permanece desactivado por defecto. El [adaptador de visión](../docs/vision.md) se habilita después de verificar el despliegue.
 
 ## 1. Inventario de solo lectura
 
@@ -95,7 +95,7 @@ La URL permite abrir la pantalla de inicio. Las rutas de operador exigen Firebas
 2. Desde `backend/`, instala las dependencias de desarrollo y ejecuta el simulador con `LLMIA_API_URL` apuntando a la URL de Cloud Run y `LLMIA_DEVICE_TOKEN` configurado en tu sesión: `python -m llmia.simulator --listen`. Detén el proceso al terminar para evitar tráfico y escrituras innecesarios.
 3. Inicia sesión como operador autorizado. Pide dos capturas, comprueba que las dos fotos son distintas y que cada descripción corresponde a su foto. El resultado debe indicar simulación.
 4. Verifica en consola que existen metadatos en Firestore `llmia-demo`, colección `llmia_robots`, y JPEG en el bucket privado. Confirma que una petición sin token no puede ver la foto. Verifica que la consulta de una observación previa funciona después de cambiar a una nueva revisión con la misma configuración de almacenamiento.
-5. Registra URL, revisión, commit, fecha y resultados con el simulador antes de integrar Gemini y el firmware.
+5. Registra URL, revisión, commit, fecha y resultados con el simulador antes de activar [Gemini](../docs/vision.md) e integrar el firmware.
 
 **Estado de este corte:** pruebas de adaptadores con dobles locales y frontend/API verificados localmente. La imagen de contenedor, las credenciales reales y la persistencia en los servicios gestionados requieren comprobación en el proyecto compartido.
 

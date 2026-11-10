@@ -71,14 +71,17 @@ El resultado debe permitir leer en `llmia-demo` y devolver permiso denegado para
 
 ## 4. Construir y desplegar
 
-Exporta `LLMIA_WEB_KEY`, `LLMIA_AUTH_DOMAIN` y `LLMIA_WEB_APP_ID` con la configuración pública de la aplicación web Firebase. Copia `infra/run.env.example.yaml` a `infra/run.env.local.yaml` y reemplaza el UID. El proyecto y el bucket ya están fijados. El archivo local se excluye de Git y del envío a Cloud Build. Exporta `LLMIA_DEVICE_SECRET_VERSION` con la versión numérica del secreto.
+La configuración de la app web se obtiene directamente de Firebase con tu cuenta de Cloud Shell, para evitar errores al copiar `apiKey` y `appId`. La validación comprueba el proyecto y el dominio autorizado antes de construir la imagen. No crea ni modifica la app de Firebase.
 
 ```bash
-LLMIA_TAG="$(git rev-parse --short HEAD)"
-LLMIA_IMAGE="${LLMIA_REGION}-docker.pkg.dev/${LLMIA_PROJECT}/llmia/web:${LLMIA_TAG}"
+python3 infra/build_from_firebase.py
+```
 
-gcloud builds submit --project="$LLMIA_PROJECT" --config=cloudbuild.yaml \
-  --substitutions="_IMAGE=$LLMIA_IMAGE,_FIREBASE_API_KEY=$LLMIA_WEB_KEY,_FIREBASE_AUTH_DOMAIN=$LLMIA_AUTH_DOMAIN,_FIREBASE_APP_ID=$LLMIA_WEB_APP_ID"
+Una vez que el build termine en `SUCCESS`, toma la imagen publicada de su salida. Conserva `infra/run.env.local.yaml` con el UID autorizado y el resto de la configuración del servicio, y usa la versión numérica habilitada del secreto:
+
+```bash
+LLMIA_IMAGE='IMAGEN_O_DIGEST_DEL_BUILD_CORRECTO'
+LLMIA_DEVICE_SECRET_VERSION=1
 
 gcloud run deploy llmia-demo --project="$LLMIA_PROJECT" --region="$LLMIA_REGION" \
   --image="$LLMIA_IMAGE" --service-account="llmia-runtime@${LLMIA_PROJECT}.iam.gserviceaccount.com" \

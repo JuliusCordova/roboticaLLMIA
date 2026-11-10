@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { callApi, explain } from './api';
+import { authErrorMessage } from './auth-error';
 import './style.css';
 
 const root = '/api/v1/robots/llmia-01';
@@ -40,8 +41,8 @@ function App() {
     setSigningIn(true);
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch {
-      setAuthError('No se pudo iniciar sesión con Google. Revisa los permisos del navegador y vuelve a intentar.');
+    } catch (error) {
+      setAuthError(authErrorMessage(error));
     } finally {
       setSigningIn(false);
     }

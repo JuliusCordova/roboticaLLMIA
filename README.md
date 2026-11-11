@@ -4,7 +4,7 @@ Prototipo universitario de robótica móvil de la UPN. El firmware base de la ES
 
 ## Panel y backend de la FAST DEMO
 
-El [panel React](frontend/README.md) y el [backend local con simulador](backend/README.md) permiten probar el flujo de captura y descripción. El [runbook de Cloud Run](infra/README.md) prepara el despliegue en el proyecto compartido `proyectopersonal-480420`, con recursos de LLMia separados y acceso por Firebase Auth. Falta verificarlo en GCP. El alcance y los criterios de aceptación están en la [especificación PA-SDD](specs/SPEC.md).
+El [panel React](frontend/README.md) y el [backend local con simulador](backend/README.md) permiten probar el flujo de captura y descripción. El [runbook de Cloud Run](infra/README.md) prepara el despliegue en el proyecto compartido `proyectopersonal-480420`, con recursos de LLMia separados y acceso por Firebase Auth. El despliegue en Cloud Run y una inferencia con Gemini sobre una imagen simulada ya fueron verificados; ver [bitácora de integración](docs/progreso-integracion-2026-11-10.md). La conexión de la ESP32-CAM física a Internet sigue pendiente. El alcance y los criterios de aceptación están en la [especificación PA-SDD](specs/SPEC.md).
 
 ## Montaje del prototipo
 
@@ -37,4 +37,4 @@ El [panel React](frontend/README.md) y el [backend local con simulador](backend/
 3. Abre en el navegador la IP indicada en el monitor serie. En la pantalla principal, verifica la vista de cámara. Abre también la ruta `/capture` de esa misma IP para comprobar que devuelve una imagen.
 4. Cambia el objeto frente a la cámara y vuelve a cargar `/capture`. La prueba se cumple si la nueva imagen muestra el cambio.
 
-**Estado del avance.** El montaje está documentado con vistas superior e inferior. La prueba desde el celular queda pendiente de ejecución en el prototipo y la integración con Gemini corresponde a una etapa posterior.
+**Estado del avance.** El montaje está documentado con vistas superior e inferior. El operador confirmó la imagen real desde `/capture` conectado a `Carrito_CAM`. Gemini respondió a una captura del simulador en Cloud Run, pero la integración ESP32-CAM → Cloud Run todavía está pendiente. La rama de integración agrega Wi-Fi AP+STA opcional; ver [guía](firmware/LLMia/WIFI_SETUP.md).

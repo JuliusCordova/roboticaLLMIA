@@ -12,7 +12,7 @@ LLMia comparte el proyecto `proyectopersonal-480420` con SmartRoute AI. Los recu
 | Secret Manager | `llmia-device-token` |
 | App web Firebase | `llmia-web` |
 
-El backend fija el proyecto, la base y el bucket anteriores. Rechaza `(default)`, `smartroute`, `gestioncitas` y el bucket predeterminado. El contenedor sirve React y FastAPI. La placa se simula y Gemini permanece desactivado por defecto. El [adaptador de visión](../docs/vision.md) se habilita después de verificar el despliegue.
+El backend fija el proyecto, la base y el bucket anteriores. Rechaza `(default)`, `smartroute`, `gestioncitas` y el bucket predeterminado. El contenedor sirve React y FastAPI. La placa se simula en las pruebas de nube; Gemini fue activado en la revisión `llmia-demo-00003-ptg` (10-11-2026). La conexión del dispositivo físico sigue pendiente; consultar la [bitácora](../docs/progreso-integracion-2026-11-10.md). El [adaptador de visión](../docs/vision.md) se habilita después de verificar el despliegue.
 
 ## 1. Inventario de solo lectura
 
@@ -100,7 +100,7 @@ La URL permite abrir la pantalla de inicio. Las rutas de operador exigen Firebas
 4. Verifica en consola que existen metadatos en Firestore `llmia-demo`, colección `llmia_robots`, y JPEG en el bucket privado. Confirma que una petición sin token no puede ver la foto. Verifica que la consulta de una observación previa funciona después de cambiar a una nueva revisión con la misma configuración de almacenamiento.
 5. Registra URL, revisión, commit, fecha y resultados con el simulador antes de activar [Gemini](../docs/vision.md) e integrar el firmware.
 
-**Estado de este corte:** pruebas de adaptadores con dobles locales y frontend/API verificados localmente. La imagen de contenedor, las credenciales reales y la persistencia en los servicios gestionados requieren comprobación en el proyecto compartido.
+**Actualización 10-11-2026:** Cloud Run desplegado y `/health` respondió en modo Gemini; el panel recibió una descripción de una imagen del simulador. Esto no sustituye la batería de pruebas de seguridad, persistencia y hardware real. Ver [bitácora](../docs/progreso-integracion-2026-11-10.md).
 
 - [Permisos por base de datos de Firestore](https://docs.cloud.google.com/firestore/native/docs/manage-databases)
 - [Recursos compartidos por las apps de Firebase](https://firebase.google.com/docs/projects/learn-more)

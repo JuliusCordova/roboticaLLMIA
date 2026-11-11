@@ -1,6 +1,6 @@
 # LLMia | Especificación FAST DEMO
 
-**Estado:** propuesta de implementación. **Versión:** 0.1. **Método:** PA-SDD con un corte vertical y arquitectura hexagonal mínima.
+**Estado:** implementación incremental; nube y simulador probados, hardware en integración. **Versión:** 0.2. **Método:** PA-SDD con un corte vertical y arquitectura hexagonal mínima.
 
 ## 1. Propósito y alcance
 
@@ -8,7 +8,7 @@ Un estudiante abre un enlace desde un celular o una PC, inicia sesión y pregunt
 
 **Actores:** operador UPN autorizado y dispositivo LLMia registrado. Un robot por demo. El operador supervisa el prototipo en el lugar.
 
-**Base disponible:** [firmware ESP32-CAM](../firmware/LLMia/LLMia.ino), [montaje físico](../README.md#montaje-del-prototipo), panel local, captura JPEG por `/capture` y distancia por `/distance`. El firmware actual crea `Carrito_CAM`; su cliente de nube, el panel React, la integración con Gemini y las pruebas de aceptación están pendientes.
+**Base disponible:** [firmware ESP32-CAM](../firmware/LLMia/LLMia.ino), [montaje físico](../README.md#montaje-del-prototipo), panel local, captura JPEG por `/capture` y distancia por `/distance`. El firmware actual crea `Carrito_CAM`; su cliente HTTPS a la nube y las pruebas finales de aceptación están pendientes. El panel React, el backend Cloud Run y una prueba de Gemini con imágenes del simulador ya cuentan con evidencia; ver [bitácora](../docs/progreso-integracion-2026-11-10.md).
 
 **Incluye:** enlace HTTPS, React adaptable, Firebase Auth, foto bajo demanda, descripción visual y una orden de voz con alternativa por texto. El panel muestra estados de robot y de la solicitud por separado.
 

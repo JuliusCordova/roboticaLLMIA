@@ -3,6 +3,11 @@
 #include <WebServer.h>
 #include <ESP32Servo.h>
 
+// Archivo local opcional, nunca subir claves a GitHub.
+#if __has_include("wifi_credentials.h")
+#include "wifi_credentials.h"
+#endif
+
 // ======================================
 //              WIFI
 // ======================================
@@ -858,7 +863,7 @@ void tomarFotoAutomatica(){
     return;
   }
 
-  uint8_t copia = (uint8_t)ps_malloc(fb->len);
+  uint8_t *copia = (uint8_t *)ps_malloc(fb->len);
   if(copia){
     memcpy(copia, fb->buf, fb->len);
     if(fotos[siguienteFoto].datos) free(fotos[siguienteFoto].datos);
@@ -954,15 +959,32 @@ if(!psramFound()){
 
 // WIFI
 
+// Mantener el punto de acceso local incluso si el router no esta disponible.
+#if defined(LLMIA_WIFI_SSID) && defined(LLMIA_WIFI_PASSWORD)
+WiFi.mode(WIFI_AP_STA);
+#else
 WiFi.mode(WIFI_AP);
-
+#endif
 WiFi.setSleep(false);
-
 WiFi.softAP(ssid,password);
-
-Serial.print("IP: ");
-
+Serial.print("IP local Carrito_CAM: ");
 Serial.println(WiFi.softAPIP());
+
+#if defined(LLMIA_WIFI_SSID) && defined(LLMIA_WIFI_PASSWORD)
+Serial.print("Conectando a Wi-Fi del router: ");
+Serial.println(LLMIA_WIFI_SSID);
+WiFi.begin(LLMIA_WIFI_SSID, LLMIA_WIFI_PASSWORD);
+const unsigned long inicioConexion = millis();
+while (WiFi.status() != WL_CONNECTED && millis() - inicioConexion < 12000) {
+  delay(250);
+}
+if (WiFi.status() == WL_CONNECTED) {
+  Serial.print("IP del robot en el router: ");
+  Serial.println(WiFi.localIP());
+} else {
+  Serial.println("Router no disponible. Se mantiene Carrito_CAM.");
+}
+#endif
 
 // PAGINA PRINCIPAL
 

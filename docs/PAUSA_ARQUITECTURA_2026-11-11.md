@@ -1,7 +1,7 @@
 # Pausa de arquitectura — LLMia UPN
 
 **Fecha:** 2026-11-11 (America/Lima)  
-**Estado:** EN PAUSA POR DECISIÓN DE ARQUITECTURA. No asumir una opción final.
+**Estado histórico (2026-11-11):** pausa para decidir. **Actualización 2026-11-15:** se seleccionó Android como puente sin reprogramar el firmware instalado. Véase [ADR-02](ADR-02-android-bridge.md).
 
 ## Resultados ya validados
 
@@ -31,9 +31,9 @@
 - `docs/progreso-integracion-2026-11-10.md`: evidencia de nube y simulador.
 - PR #1 y #2 ya fusionados.
 
-## Decisiones arquitectónicas pendientes (NO resueltas)
+## Decisiones pendientes registradas en el corte histórico (revisadas por ADR-02)
 
-1. Selección de arquitectura destino: placa directa, laptop temporal o móvil como puente.
+1. ~~Selección de arquitectura destino: placa directa, laptop temporal o móvil como puente.~~ **Resuelta en ADR-02: Android como puente.**
 2. Alcance de la demo UPN: visión bajo demanda, voz, navegación, control desde móvil; ordenar por prioridad.
 3. Estrategia de conexión y secretos por dispositivo (provisión/revocación, TLS, operación sin laptop).
 4. Estrategia de robustez de cámara ante `cam_hal: FB-OVF` y límites de captura.
@@ -42,6 +42,6 @@
 
 ## Regla para retomar
 
-**No realizar más despliegues, flasheos ni cambios de arquitectura** hasta recibir la decisión del usuario. En el próximo encuentro, empezar revisando alternativas y objetivos; ejecutar luego una sola prueba por vez. Nunca copiar contraseñas de Wi-Fi ni tokens de Cloud Run al repositorio o al chat.
+**Nota histórica:** no realizar más despliegues ni flasheos sin validar el nuevo diseño y sus pruebas; la decisión arquitectónica quedó establecida posteriormente en ADR-02. En el próximo encuentro, empezar revisando alternativas y objetivos; ejecutar luego una sola prueba por vez. Nunca copiar contraseñas de Wi-Fi ni tokens de Cloud Run al repositorio o al chat.
 
 **Último punto exacto:** usuario confirmó que ambas URL abren desde la misma laptop; se preparó y fusionó el puente Python, se explicó su propósito, pero el usuario suspendió para evaluar la arquitectura antes de instalarlo o ejecutarlo.

@@ -6,6 +6,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.wifi.WifiNetworkSpecifier
+import pe.edu.upn.llmia.BuildConfig
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -59,6 +60,21 @@ class Links(context: Context) {
         robotNetwork = null
     }
 
+    /** Solo CloudApi usa esta selección; RobotApi conserva robotNetwork. */
+    fun cloudNetwork(): Network? {
+        val cellular = cellularNetwork()
+        if (cellular != null) return cellular
+        if (!BuildConfig.DEBUG || !BuildConfig.ALLOW_DEFAULT_CLOUD_NETWORK) return null
+        val default = cm.activeNetwork
+        val caps = default?.let { cm.getNetworkCapabilities(it) }
+        val internet = default?.takeIf {
+            caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        }
+        return CloudNetworkPolicy.select(cellular, internet, robotNetwork,
+            BuildConfig.DEBUG, BuildConfig.ALLOW_DEFAULT_CLOUD_NETWORK)
+    }
+
     @Suppress("DEPRECATION")
     fun cellularNetwork(): Network? = cm.allNetworks.firstOrNull { net ->
         val caps = cm.getNetworkCapabilities(net)
@@ -69,7 +85,7 @@ class Links(context: Context) {
 }
 
 class RobotOffline : IllegalStateException("Robot sin conexión Wi-Fi")
-class CellularOffline : IllegalStateException("Sin datos móviles con Internet")
+class CloudOffline : IllegalStateException("Sin red disponible para nube. Modo normal: datos móviles; modo prueba debug: Internet validado.")
 
 internal object Http {
     fun exchange(
@@ -119,3 +135,4 @@ internal object Http {
 }
 
 fun Throwable.short(): String = "${javaClass.simpleName}: ${message?.take(110) ?: "sin detalle"}"
+

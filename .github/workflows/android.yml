@@ -16,6 +16,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
@@ -23,3 +25,10 @@ jobs:
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - name: Unit tests, APK and lint
         run: gradle -p android --no-daemon testDebugUnitTest assembleDebug lintDebug
+      - name: Check debug network option and release isolation
+        run: |
+          echo "llmia.debug.allowDefaultCloudNetwork=true" >> android/local.properties
+          gradle -p android --no-daemon testDebugUnitTest assembleDebug lintDebug generateReleaseBuildConfig
+          grep -q "ALLOW_DEFAULT_CLOUD_NETWORK = true" android/app/build/generated/source/buildConfig/debug/pe/edu/upn/llmia/BuildConfig.java
+          grep -q "ALLOW_DEFAULT_CLOUD_NETWORK = false" android/app/build/generated/source/buildConfig/release/pe/edu/upn/llmia/BuildConfig.java
+

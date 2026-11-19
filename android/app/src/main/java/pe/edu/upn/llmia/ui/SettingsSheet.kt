@@ -91,11 +91,13 @@ fun SettingsSheet(
             Field(password, { password = it }, "Clave Wi-Fi (no se guarda)", secret = true)
             Primary("Conectar al robot", enabled = state.robot != LinkState.CONNECTING) { connect() }
 
-            Section("2 · Nube (datos móviles)", when (val c = state.cloud) {
-                is CloudState.Ok -> "Cloud Run responde · modo ${c.mode}"
+            Section(if (state.testCloudNetwork) "2 · Nube (Internet de prueba)" else "2 · Nube (datos móviles)", when (val c = state.cloud) {
+                is CloudState.Ok -> "Cloud Run responde · modo ${c.mode}" +
+                    if (c.operatorVerified) " · Operador autorizado" else " · Operador sin comprobar"
                 CloudState.Checking -> "Comprobando…"
                 is CloudState.Fail -> "Sin acceso: ${c.reason}"
-                CloudState.Unknown -> "Activa los datos móviles y comprueba"
+                CloudState.Unknown -> if (state.testCloudNetwork) "Modo prueba debug: usa Internet del emulador y comprueba"
+                    else "Activa los datos móviles y comprueba"
             })
             Secondary("Comprobar Cloud Run", onCheckCloud)
 
@@ -160,3 +162,4 @@ private fun Secondary(text: String, onClick: () -> Unit) {
         Text(text, color = Llm.Yellow, fontWeight = FontWeight.Bold)
     }
 }
+

@@ -47,7 +47,7 @@ enum class Source { VOICE, TEXT, BUTTON, PANEL }
 sealed interface CloudState {
     data object Unknown : CloudState
     data object Checking : CloudState
-    data class Ok(val mode: String) : CloudState
+    data class Ok(val mode: String, val operatorVerified: Boolean = false) : CloudState
     data class Fail(val reason: String) : CloudState
 }
 
@@ -65,6 +65,7 @@ data class UiState(
     val robot: LinkState = LinkState.OFF,
     val cloud: CloudState = CloudState.Unknown,
     val bridgeOn: Boolean = false,
+    val testCloudNetwork: Boolean = BuildConfig.DEBUG && BuildConfig.ALLOW_DEFAULT_CLOUD_NETWORK,
     val operator: String? = null,
     val operatorConfigured: Boolean = false,
     val voiceAvailable: Boolean = true,
@@ -87,7 +88,7 @@ data class UiState(
 class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     private val links = Links(app)
     private val robot = RobotApi { links.robotNetwork }
-    private val cloud = CloudApi(BuildConfig.CLOUD_ORIGIN, BuildConfig.ROBOT_ID) { links.cellularNetwork() }
+    private val cloud = CloudApi(BuildConfig.CLOUD_ORIGIN, BuildConfig.ROBOT_ID) { links.cloudNetwork() }
     private val auth = OperatorAuth(app)
     private val voice = Voice(app)
 
@@ -151,9 +152,23 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
 
     fun checkCloud() = viewModelScope.launch {
         _ui.update { it.copy(cloud = CloudState.Checking) }
-        runCatching { cloud.health() }
-            .onSuccess { mode -> _ui.update { it.copy(cloud = CloudState.Ok(mode)) } }
-            .onFailure { e -> _ui.update { it.copy(cloud = CloudState.Fail(e.short())) } }
+        try {
+            val mode = cloud.health()
+            val signedIn = _ui.value.operator != null
+            if (signedIn) cloud.verifyOperator(auth.idToken())
+            _ui.update { it.copy(cloud = CloudState.Ok(mode, signedIn)) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: CloudHttpException) {
+            val message = when (e.code) {
+                401 -> "Sesion rechazada. Cierra sesion e inicia nuevamente."
+                403 -> "Usuario sin permiso para llmia-01 en el backend."
+                else -> "Cloud Run respondio HTTP ${e.code}."
+            }
+            _ui.update { it.copy(cloud = CloudState.Fail(message)) }
+        } catch (e: Exception) {
+            _ui.update { it.copy(cloud = CloudState.Fail(e.short())) }
+        }
     }
 
     fun signIn(activity: Activity) = viewModelScope.launch {
@@ -164,7 +179,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
 
     fun signOut() {
         auth.signOut()
-        _ui.update { it.copy(operator = null) }
+        _ui.update { it.copy(operator = null, cloud = CloudState.Unknown) }
     }
 
     // ------------------------------------------------------------------ vista en vivo y distancia
@@ -540,3 +555,4 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         super.onCleared()
     }
 }
+

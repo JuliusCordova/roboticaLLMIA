@@ -41,24 +41,34 @@ class CloudHttpException(val code: Int, val detail: String) : IllegalStateExcept
  * Contrato existente de Cloud Run, sin cambios en el backend:
  *  operador:    POST /api/v1/robots/{id}/observations, GET /api/v1/observations/{id}
  *  dispositivo: POST /device/v1/poll, PUT /device/v1/observations/{id}/capture
- * Todas las llamadas salen por la red celular.
+ * Las llamadas usan red celular; debug puede habilitar Internet predeterminado.
  */
 class CloudApi(
     private val origin: String,
     private val robotId: String,
-    private val cellular: () -> Network?,
+    private val network: () -> Network?,
 ) {
     private val idPattern = Regex("^[a-f0-9]{32}$")
     init {
         require(origin == "https://llmia-demo-913797829604.us-central1.run.app") { "Origen Cloud Run no aprobado" }
         require(robotId == "llmia-01") { "Robot no aprobado para esta demo" }
     }
-    private fun net() = cellular() ?: throw CellularOffline()
+    private fun net() = network() ?: throw CloudOffline()
 
     suspend fun health(): String = withContext(Dispatchers.IO) {
         val (code, body) = Http.exchange(net(), "$origin/health", connectMs = 8_000, readMs = 10_000)
         if (code != 200) throw CloudHttpException(code, "health")
         JSONObject(body.toString(Charsets.UTF_8)).optString("mode", "?")
+    }
+
+    /** Prueba de autorización sin crear capturas ni requerir robot conectado. */
+    suspend fun verifyOperator(operatorToken: String): Unit = withContext(Dispatchers.IO) {
+        val (code, body) = Http.exchange(net(), "$origin/api/v1/robots/$robotId/status",
+            auth = "Bearer $operatorToken", maxResponse = 4096, readMs = 10_000)
+        if (code != 200) throw CloudHttpException(code, "operator_status")
+        check(JSONObject(body.toString(Charsets.UTF_8)).getString("robot_id") == robotId) {
+            "Respuesta de otro robot"
+        }
     }
 
     suspend fun poll(deviceToken: String): Poll = withContext(Dispatchers.IO) {
@@ -99,3 +109,4 @@ class CloudApi(
         Observation.parse(body)
     }
 }
+

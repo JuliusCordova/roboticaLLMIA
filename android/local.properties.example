@@ -5,3 +5,7 @@ llmia.firebase.appId=
 llmia.firebase.projectId=proyectopersonal-480420
 # Cliente OAuth Web del mismo proyecto, no el appId de llmia-web.
 llmia.firebase.webClientId=
+
+
+# Solo para debug: permitir Internet predeterminado del emulador hacia Cloud Run.
+llmia.debug.allowDefaultCloudNetwork=false

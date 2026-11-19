@@ -105,3 +105,18 @@ La clave Wi-Fi y el token del dispositivo se escriben en Ajustes, viven solo en 
 En Windows: `gradlew.bat testDebugUnitTest assembleDebug lintDebug`. Sin datos Firebase, el APK permite probar control local y puente; el inicio de sesión requiere registrar la app Android y su SHA-1 en Firebase. El token de dispositivo se aprovisiona en memoria y no caduca por el solo hecho de cerrar la app: su revocación se administra en el backend.
 
 Probar STOP con cámara lenta/sin respuesta, pérdida de Wi-Fi, cancelación de gesto, cambio de pantalla y resultado de voz tardío. Medir la parada ante un obstáculo durante el avance. No se da por aprobada ninguna de estas pruebas con el montaje real.
+
+
+## Probar Cloud Run desde el emulador
+
+La red celular sigue siendo la ruta normal. Para permitir Internet predeterminado solo en debug, añade a tu `local.properties` existente (conserva `sdk.dir` y los cuatro valores Firebase):
+
+```properties
+llmia.debug.allowDefaultCloudNetwork=true
+```
+
+Sincroniza Gradle y vuelve a ejecutar la variante debug. En Ajustes aparece «Nube (Internet de prueba)». Pulsa «Comprobar Cloud Run»: verifica `/health`; si hay sesión de operador también consulta `GET /api/v1/robots/llmia-01/status` con su token Firebase. HTTP 200 muestra «Operador autorizado» aunque el robot esté desconectado. HTTP 401 indica sesión rechazada; HTTP 403 indica que ese UID no está autorizado por el backend. No se imprime el token ni se crean observaciones.
+
+El modo requiere una red predeterminada con capacidades INTERNET y VALIDATED y excluye la red asignada al robot. Si hay celular validado, se mantiene su prioridad. Las llamadas siguen vinculadas por petición con `Network.openConnection`, sin cambiar la red global del proceso. El servidor HTTPS aprobado, la validación TLS y las credenciales se conservan.
+
+Para volver al modo normal, cambia el valor a `false` y recompila. Las variantes release fuerzan `false` aunque el archivo local tenga `true`. Este ajuste no conecta el emulador a Carrito_CAM, no habilita motores ni convierte la prueba de nube en una prueba de hardware.

@@ -34,6 +34,15 @@ android {
         buildConfigField("String", "FIREBASE_PROJECT_ID", "\"${local("llmia.firebase.projectId")}\"")
         buildConfigField("String", "FIREBASE_WEB_CLIENT_ID", "\"${local("llmia.firebase.webClientId")}\"")
     }
+    buildTypes {
+        getByName("debug") {
+            buildConfigField("boolean", "ALLOW_DEFAULT_CLOUD_NETWORK",
+                (local("llmia.debug.allowDefaultCloudNetwork") == "true").toString())
+        }
+        getByName("release") {
+            buildConfigField("boolean", "ALLOW_DEFAULT_CLOUD_NETWORK", "false")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -72,3 +81,4 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 }
+

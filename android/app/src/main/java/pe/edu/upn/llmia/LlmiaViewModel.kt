@@ -580,7 +580,10 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
                         }
                     } catch (e: CancellationException) { throw e }
                       catch (e: Exception) { say(Speaker.SYSTEM, "Puente detenido: ${e.short()}", alert = true) }
-                    finally { _ui.update { it.copy(bridgeOn = false) } }
+                    finally {
+                        cancelVisual()
+                        _ui.update { it.copy(bridgeOn = false) }
+                    }
                 }
             }
         }

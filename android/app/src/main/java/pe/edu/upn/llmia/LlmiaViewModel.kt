@@ -431,8 +431,8 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
                 if (target == null) {
                     observe(question, version)
                 } else {
-                    sensorsJob?.cancelAndJoin()
                     pausedSensors = true
+                    sensorsJob?.cancelAndJoin()
                     var last: Observation? = null
                     val result = withTimeout(CameraSearch.TIMEOUT_MS) {
                         CameraSearch.run(

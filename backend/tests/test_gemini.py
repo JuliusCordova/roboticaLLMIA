@@ -62,6 +62,7 @@ class GeminiTests(TestCase):
         VertexGeminiDescriber(generate).describe(scene("red"), "¿De qué color es?", history)
         body = generate.call_args.args[0]
         self.assertIn("no prueba de lo visible ahora", body["systemInstruction"]["parts"][0]["text"])
+        self.assertIn("pide aclaración", body["systemInstruction"]["parts"][0]["text"])
         self.assertIn("Veo una botella azul", body["contents"][0]["parts"][2]["text"])
         self.assertEqual(b64decode(body["contents"][0]["parts"][1]["inlineData"]["data"]), scene("red"))
 

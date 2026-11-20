@@ -33,7 +33,7 @@ Pruebas automatizadas: contexto acotado, foto nueva, autorización de propietari
 Pendiente en físico tras desplegar backend e instalar Android 0.4:
 
 1. Con el carrito inmóvil y supervisado, «¿Qué ves?» seguido de «¿Y de qué color es?»; mover o retirar el objeto para comprobar que no se presenta contexto viejo como evidencia actual.
-2. «Nueva conversación»: comprobar que pide aclaración si una referencia no tiene antecedente.
+2. «Nueva conversación»: comprobar que pide aclaración si una referencia es ambigua y no tiene antecedente claro.
 3. Colocar un objeto inmóvil a izquierda/derecha. «Busca una botella»: verificar ángulos reales, foto de cada vista, parada al encontrarlo y que las ruedas no reciben órdenes de avance/giro.
 4. Objeto ausente y escena oscura: distinguir ausencia de incertidumbre, máximo tres consultas.
 5. STOP durante asentamiento, consulta y subida; segundo plano, pérdida de Wi-Fi, sesión cerrada, fallo del servo y del STOP. Medir latencias reales.
@@ -42,3 +42,12 @@ Pendiente en físico tras desplegar backend e instalar Android 0.4:
 Primero desplegar el backend nuevo, luego instalar Android. No se han modificado Cloud Run, IAM, Firebase, Storage, secretos ni firmware desde este entorno. No se usa Firebase Test Lab.
 
 Referencia del contrato de salida estructurada: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/capabilities/control-generated-output
+
+## Resultado automatizado final
+
+Código validado: `bdbb2ecfb2e961171889f9eaee4468e76bb8a1a7`.
+
+- Backend: **44 pruebas locales OK** y [GitHub Actions SUCCESS](https://github.com/JuliusCordova/roboticaLLMIA/actions/runs/44677360137).
+- Android: **44 pruebas JVM locales OK**. [GitHub Actions SUCCESS](https://github.com/JuliusCordova/roboticaLLMIA/actions/runs/44677360136) con `testDebugUnitTest assembleDebug lintDebug`; segunda ejecución con Internet debug habilitado y comprobación de `ALLOW_DEFAULT_CLOUD_NETWORK=false` en release.
+- Se corrigió la reanudación de vista previa al cancelar durante el apagado de sensores. Una salida por error del puente también cancela las tareas visuales. El prompt pide aclaración ante referencias sin contexto claro.
+- El commit posterior solo actualiza README y este registro; no cambia código. No se han ejecutado estas funciones 0.4 sobre el montaje físico ni se ha desplegado su backend desde este entorno.

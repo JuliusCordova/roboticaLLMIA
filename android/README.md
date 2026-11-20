@@ -5,7 +5,7 @@ App Kotlin + Jetpack Compose que hace dos cosas con la ESP32-CAM **sin reprogram
 1. **Maneja el robot** por la red local `Carrito_CAM`, con flechas, texto o voz.
 2. **Hace de puente** entre la cámara y Cloud Run, para que Gemini describa lo que ve («¿Qué ves?»).
 
-> Estado: cámara, distancia y puente anterior con token reportados funcionando por Julius en Android físico. La integración v0.3 (sesión automática y preguntas dirigidas) tiene pruebas automatizadas y compilación verificada; su prueba física sigue pendiente. Ver el [punto de control](../docs/PUNTO_DE_CONTROL_2026-11-19_VISION_SESION.md).
+> Estado: cámara, distancia y puente anterior con token reportados funcionando por Julius en Android físico. Julius reportó también el flujo v0.3 funcionando. La integración v0.4 (contexto y búsqueda con servo) requiere todavía su prueba física. Ver el [punto de control actual](../docs/PUNTO_DE_CONTROL_2026-11-19_CONTEXTO_BUSQUEDA.md).
 
 ## Qué trae la interfaz
 
@@ -124,7 +124,7 @@ Para volver al modo normal, cambia el valor a `false` y recompila. Las variantes
 
 ## Consultas visuales v0.3.0
 
-Texto y voz comparten la misma interpretación. Ejemplos: «Busca un perro y descríbelo», «¿De qué color es esa silla?» y «¿Hay un perro o un gato?». Cada consulta crea un ID y captura nuevos; no reutiliza una foto anterior. Máximo 500 caracteres. Si el objeto no es visible, el modelo debe decirlo. Buscar significa examinar el encuadre actual: no conduce el carrito ni gira automáticamente la cámara. Los movimientos siguen siendo órdenes locales explícitas y Gemini no tiene herramientas de control.
+Texto y voz comparten la misma interpretación. Ejemplos: «Busca un perro y descríbelo», «¿De qué color es esa silla?» y «¿Hay un perro o un gato?». Cada consulta crea un ID y captura nuevos; no reutiliza una foto anterior. Máximo 500 caracteres. Si el objeto no es visible, el modelo debe decirlo. En v0.3, buscar examinaba solo el encuadre actual. En v0.4, las órdenes explícitas «busca…» revisan hasta tres posiciones de cámara, como se detalla abajo; el carrito permanece detenido. Los movimientos siguen siendo órdenes locales explícitas y Gemini no tiene herramientas de control.
 
 El backend conserva la pregunta en el registro de esa observación y la pasa al adaptador de visión con el JPEG correspondiente. Si un cliente antiguo no envía pregunta, se aplica «¿Qué ves?». El modo simulador conserva sus respuestas de colores: no reconoce objetos.
 

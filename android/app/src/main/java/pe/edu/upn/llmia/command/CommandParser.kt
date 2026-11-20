@@ -14,6 +14,7 @@ sealed interface Command {
     data class Move(val direction: Direction, val millis: Long) : Command
     data object Stop : Command
     data object Describe : Command
+    data class VisualQuestion(val question: String) : Command
     data class Look(val angle: Int) : Command      // servo: 0 = izquierda, 90 = centro, 180 = derecha
     data class Sweep(val on: Boolean) : Command
     data class Unknown(val text: String) : Command
@@ -64,6 +65,14 @@ object CommandParser {
             return Command.Sweep(false)
         }
         if (has(STOP)) return Command.Stop
+        // Las consultas visuales solo producen una foto y texto: nunca MOVE ni servo.
+        val visual = text.replaceFirst(Regex("^llmia[,.]?\\s+"), "").removePrefix("por favor ")
+        if (raw.trim().length <= 500 &&
+            Regex("^(?:busca|buscar|encuentra|localiza|describe|describeme|que ves|que observas|que hay|que es|que color|de que color|que animal|que objeto|que tipo|que raza|cuantos|cuantas|donde|cual|como es|hay|ves|puedes ver|puedes describir|puedes buscar)\\b.*").matches(visual) &&
+            visual !in setOf("que ves", "que observas", "que hay", "que hay adelante", "describe la escena",
+                "describe el entorno", "describeme la escena", "que es eso")) {
+            return Command.VisualQuestion(raw.trim())
+        }
         if (words.any { it in setOf("no", "nunca", "sin", "tampoco", "ni", "y", "o", "luego", "despues", "si") } ||
             raw.any { it in "-−–—" }) return Command.Unknown(raw)
 
@@ -117,3 +126,4 @@ object CommandParser {
         }.coerceAtMost(max)
     }
 }
+

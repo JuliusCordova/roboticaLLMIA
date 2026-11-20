@@ -6,13 +6,15 @@ from pathlib import Path
 from secrets import compare_digest
 from typing import Callable
 
+from pydantic import BaseModel, ConfigDict, field_validator
+
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from starlette.concurrency import run_in_threadpool
 
-from .core import DescribeScene, Observation, Rejected, RepositoryUnavailable, Status
+from .core import DEFAULT_QUESTION, validate_question, DescribeScene, Observation, Rejected, RepositoryUnavailable, Status
 from .firebase_auth import AuthUnavailable, InvalidCredential, firebase_verifier
 from .gemini import LOCATION as GEMINI_LOCATION, MODEL as GEMINI_MODEL, VertexGeminiDescriber, vertex_describer
 from .local import MemoryImages, MemoryObservations, SimulatedDescriber
@@ -34,6 +36,16 @@ ERRORS = {
 }
 
 
+class ObservationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    question: str = DEFAULT_QUESTION
+
+    @field_validator("question")
+    @classmethod
+    def valid_question(cls, value):
+        return validate_question(value)
+
+
 def payload(job: Observation):
     return {
         "id": job.id,
@@ -41,6 +53,7 @@ def payload(job: Observation):
         "status": job.status,
         "expires_at": job.expires_at.isoformat(),
         "description": job.description,
+        "question": job.question,
         "error": job.error,
         "image_url": f"/api/v1/observations/{job.id}/image" if job.status == Status.READY else None,
     }
@@ -99,9 +112,9 @@ def http_app(
         return {"robot_id": robot_id, "online": online, "last_seen": last_seen, "active_status": active}
 
     @app.post("/api/v1/robots/{robot_id}/observations", status_code=202)
-    def create_observation(request: Request, owner: str = Depends(operator)):
+    def create_observation(request: Request, body: ObservationRequest | None = None, owner: str = Depends(operator)):
         check_robot(request.path_params["robot_id"])
-        return payload(use_case.request(robot_id, owner))
+        return payload(use_case.request(robot_id, owner, body.question if body else DEFAULT_QUESTION))
 
     @app.get("/api/v1/observations/{job_id}")
     def read_observation(job_id: str, owner: str = Depends(operator)):
@@ -115,15 +128,33 @@ def http_app(
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
         )
 
-    @app.post("/device/v1/poll", dependencies=[Depends(device)])
-    def poll():
-        job = use_case.poll(robot_id)
+    @app.post("/api/v1/robots/{requested_robot}/bridge/poll")
+    def operator_poll(requested_robot: str, owner: str = Depends(operator)):
+        check_robot(requested_robot)
+        return poll_response(owner)
+
+    def poll_response(owner=None):
+        job = use_case.poll(robot_id, owner)
         if job is None:
             return Response(status_code=204)
         return {"id": job.id, "action": "CAPTURE", "expires_at": job.expires_at.isoformat()}
 
+    @app.put("/api/v1/robots/{requested_robot}/bridge/observations/{job_id}/capture")
+    async def operator_capture(requested_robot: str, job_id: str, request: Request, owner: str = Depends(operator)):
+        check_robot(requested_robot)
+        # Authorize ownership before reading the image or calling the model.
+        use_case.get(robot_id, owner, job_id)
+        return await capture_response(job_id, request, owner)
+
+    @app.post("/device/v1/poll", dependencies=[Depends(device)])
+    def poll():
+        return poll_response()
+
     @app.put("/device/v1/observations/{job_id}/capture", dependencies=[Depends(device)])
     async def receive_capture(job_id: str, request: Request):
+        return await capture_response(job_id, request)
+
+    async def capture_response(job_id: str, request: Request, owner: str | None = None):
         if request.headers.get("content-type", "").split(";")[0].strip().lower() != "image/jpeg":
             raise HTTPException(415, "jpeg_required")
         body = bytearray()
@@ -141,7 +172,7 @@ def http_app(
                     image.load()
             except (OSError, ValueError, Image.DecompressionBombError) as exc:
                 raise HTTPException(415, "invalid_jpeg") from exc
-            return payload(use_case.receive(robot_id, job_id, jpeg))
+            return payload(use_case.receive(robot_id, job_id, jpeg, owner))
 
         return await run_in_threadpool(receive)
 
@@ -229,3 +260,4 @@ def create_app():
     if not valid_local_token(operator_token) or operator_token == device_token:
         raise RuntimeError("Configura LLMIA_OPERATOR_TOKEN con un valor distinto al del dispositivo.")
     return local_app(use_case, robot, {operator_token: ("operador-local", frozenset({robot}))}, device_token, static_dir)
+

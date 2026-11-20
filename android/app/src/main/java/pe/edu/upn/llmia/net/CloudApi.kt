@@ -38,9 +38,9 @@ sealed interface Poll {
 class CloudHttpException(val code: Int, val detail: String) : IllegalStateException("HTTP $code $detail")
 
 /**
- * Contrato existente de Cloud Run, sin cambios en el backend:
+ * Contrato de Cloud Run:
  *  operador:    POST /api/v1/robots/{id}/observations, GET /api/v1/observations/{id}
- *  dispositivo: POST /device/v1/poll, PUT /device/v1/observations/{id}/capture
+ *  puente Android: rutas /api/v1/robots/{id}/bridge con sesión Firebase
  * Las llamadas usan red celular; debug puede habilitar Internet predeterminado.
  */
 class CloudApi(
@@ -71,8 +71,8 @@ class CloudApi(
         }
     }
 
-    suspend fun poll(deviceToken: String): Poll = withContext(Dispatchers.IO) {
-        val (code, body) = Http.exchange(net(), "$origin/device/v1/poll", "POST", "Bearer $deviceToken", ByteArray(0))
+    suspend fun poll(operatorToken: String): Poll = withContext(Dispatchers.IO) {
+        val (code, body) = Http.exchange(net(), "$origin/api/v1/robots/$robotId/bridge/poll", "POST", "Bearer $operatorToken", ByteArray(0))
         when (code) {
             204 -> Poll.NoWork
             200 -> {
@@ -87,17 +87,17 @@ class CloudApi(
         }
     }
 
-    suspend fun upload(deviceToken: String, id: String, jpeg: ByteArray): Observation = withContext(Dispatchers.IO) {
+    suspend fun upload(operatorToken: String, id: String, jpeg: ByteArray): Observation = withContext(Dispatchers.IO) {
         require(idPattern.matches(id))
-        val (code, body) = Http.exchange(net(), "$origin/device/v1/observations/$id/capture", "PUT",
-            "Bearer $deviceToken", jpeg, "image/jpeg", readMs = 45_000)
+        val (code, body) = Http.exchange(net(), "$origin/api/v1/robots/$robotId/bridge/observations/$id/capture", "PUT",
+            "Bearer $operatorToken", jpeg, "image/jpeg", readMs = 45_000)
         if (code != 200) throw CloudHttpException(code, body.toString(Charsets.UTF_8).take(80))
         Observation.parse(body)
     }
 
-    suspend fun requestObservation(operatorToken: String): Observation = withContext(Dispatchers.IO) {
+    suspend fun requestObservation(operatorToken: String, question: String = "¿Qué ves?"): Observation = withContext(Dispatchers.IO) {
         val (code, body) = Http.exchange(net(), "$origin/api/v1/robots/$robotId/observations", "POST",
-            "Bearer $operatorToken", ByteArray(0))
+            "Bearer $operatorToken", JSONObject().put("question", question).toString().toByteArray(Charsets.UTF_8), "application/json")
         if (code != 202) throw CloudHttpException(code, body.toString(Charsets.UTF_8).take(80))
         Observation.parse(body)
     }
@@ -109,4 +109,5 @@ class CloudApi(
         Observation.parse(body)
     }
 }
+
 

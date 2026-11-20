@@ -83,3 +83,16 @@ Las flechas hacia servicios indican llamadas; en código, los adaptadores implem
 - [DevPattern: especificación mínima](https://github.com/JuliusCordova/DevPattern/blob/main/definition-packs/minimum-sufficient-specification.md)
 - [DevPattern: arquitectura](https://github.com/JuliusCordova/DevPattern/blob/main/patterns/architecture/README.md)
 - [Firebase: verificación de tokens](https://firebase.google.com/docs/auth/admin/verify-id-tokens) y [Firestore: transacciones](https://firebase.google.com/docs/firestore/manage-data/transactions)
+
+
+
+## Ampliación aprobada: Android y preguntas dirigidas (19-11-2026)
+
+Este incremento amplía el alcance inicial anterior para incluir el cliente Android, control local por texto/voz y puente de cámara autenticado con la sesión Firebase. Conserva la prohibición de movimiento decidido desde la nube. El control nativo está descrito en `android/README.md`; buscar un objeto significa analizar solo una foto nueva del encuadre actual, sin navegación ni barrido automático.
+
+| ID | Historia | Aceptación observable |
+| --- | --- | --- |
+| US-05 | Como operador autorizado, quiero iniciar el puente sin copiar secretos. | Google/Firebase entrega automáticamente un ID token; backend rechaza sesión inválida con 401 y UID no permitido con 403. Otro compañero puede utilizar su cuenta autorizada y su teléfono. Al cerrar sesión el puente se detiene. |
+| US-06 | Como operador, quiero preguntar por un objeto de la escena por texto o voz. | «Busca un perro y descríbelo» crea captura e ID nuevos, transmite la pregunta con ese JPEG y responde con evidencia visible o ausencia/incertidumbre. No produce comandos de movimiento. |
+
+Contrato adicional: POST `/api/v1/robots/{robot_id}/bridge/poll` y PUT `/api/v1/robots/{robot_id}/bridge/observations/{id}/capture`, ambas con Firebase Bearer y propiedad de la observación. POST observations admite JSON `{ "question": "Busca un perro y descríbelo" }`, máximo 500 caracteres; sin cuerpo usa «¿Qué ves?». El registro persistido incluye `question`. Las rutas antiguas del dispositivo conservan su credencial separada. Ver [punto de control](../docs/PUNTO_DE_CONTROL_2026-11-19_VISION_SESION.md) para pruebas y límites.

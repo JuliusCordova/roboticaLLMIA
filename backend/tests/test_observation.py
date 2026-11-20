@@ -100,7 +100,7 @@ class FlowTests(TestCase):
         calls = []
 
         class Describer:
-            def describe(self, data):
+            def describe(self, data, question="¿Qué ves?"):
                 calls.append(data)
                 started.set()
                 if not release.wait(5):
@@ -134,7 +134,7 @@ class FlowTests(TestCase):
 
     def test_description_failure_does_not_publish_image(self):
         class BrokenDescriber:
-            def describe(self, jpeg):
+            def describe(self, jpeg, question="¿Qué ves?"):
                 raise RuntimeError("provider unavailable")
 
         self.core.describer = BrokenDescriber()
@@ -150,7 +150,7 @@ class FlowTests(TestCase):
         owner = self
 
         class SlowDescriber:
-            def describe(self, jpeg):
+            def describe(self, jpeg, question="¿Qué ves?"):
                 owner.now += timedelta(seconds=31)
                 return "Llegó tarde"
 
@@ -161,3 +161,4 @@ class FlowTests(TestCase):
         self.assertEqual(result["status"], "VENCIDA")
         self.assertIsNone(result["description"])
         self.assertIsNone(self.core.images.get(job))
+

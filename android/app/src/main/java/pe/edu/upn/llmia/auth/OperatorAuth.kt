@@ -18,7 +18,7 @@ import pe.edu.upn.llmia.BuildConfig
  * Inicio de sesión del operador con Google, en el mismo proyecto Firebase que el panel web.
  * El backend verifica el token de Firebase y que el UID esté en LLMIA_ALLOWED_UIDS.
  * La configuración viene de local.properties (no se versiona). Sin ella, la app sigue
- * funcionando para manejar el robot y como puente, pero no puede pedir «¿Qué ves?».
+ * funcionando para manejar el robot; el puente y las preguntas requieren sesión.
  */
 class OperatorAuth(private val context: Context) {
     val configured: Boolean = listOf(
@@ -70,3 +70,4 @@ class OperatorAuth(private val context: Context) {
         const val APP_NAME = "llmia"
     }
 }
+

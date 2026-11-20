@@ -22,6 +22,18 @@ class Status(StrEnum):
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_QUESTION = "¿Qué ves?"
+MAX_QUESTION = 500
+
+
+def validate_question(question: str) -> str:
+    if not isinstance(question, str) or not question.strip() or len(question) > MAX_QUESTION:
+        raise ValueError("La pregunta debe tener entre 1 y 500 caracteres.")
+    if any(ord(c) < 32 and c not in "\n\t" for c in question):
+        raise ValueError("La pregunta contiene caracteres no válidos.")
+    return question.strip()
+
+
 ACTIVE = frozenset({Status.PENDING, Status.CLAIMED, Status.ANALYZING})
 
 
@@ -48,6 +60,8 @@ class Observation:
     digest: str | None = None
     description: str | None = None
     error: str | None = None
+
+    question: str = DEFAULT_QUESTION
 
     def current(self, now: datetime) -> Observation:
         if self.status in ACTIVE and self.expires_at <= now:
@@ -82,7 +96,7 @@ class ImageStore(Protocol):
 
 
 class SceneDescriber(Protocol):
-    def describe(self, jpeg: bytes) -> str: ...
+    def describe(self, jpeg: bytes, question: str = DEFAULT_QUESTION) -> str: ...
 
 
 @dataclass
@@ -113,7 +127,8 @@ class DescribeScene:
             )
         return self.repository.transact(robot, op)
 
-    def request(self, robot: str, owner: str) -> Observation:
+    def request(self, robot: str, owner: str, question: str = DEFAULT_QUESTION) -> Observation:
+        question = validate_question(question)
         def op(state: RobotState):
             now = self.now()
             if state.active(now):
@@ -122,7 +137,7 @@ class DescribeScene:
             if len(state.observations) >= self.demo_record_limit:
                 removed = next(iter(state.observations))
                 del state.observations[removed]
-            job = Observation(uuid4().hex, robot, owner, now + self.ttl)
+            job = Observation(uuid4().hex, robot, owner, now + self.ttl, question=question)
             state.observations[job.id] = job
             return job, removed
         job, removed = self.repository.transact(robot, op)
@@ -130,12 +145,12 @@ class DescribeScene:
             self.discard_image(removed)
         return job
 
-    def poll(self, robot: str) -> Observation | None:
+    def poll(self, robot: str, owner: str | None = None) -> Observation | None:
         def op(state: RobotState):
             now = self.now()
             state.last_seen = now
             job = state.active(now)
-            if job is None or job.status != Status.PENDING:
+            if job is None or job.status != Status.PENDING or (owner is not None and job.owner != owner):
                 return None
             claimed = replace(job, status=Status.CLAIMED)
             state.observations[job.id] = claimed
@@ -162,12 +177,12 @@ class DescribeScene:
             raise Rejected("image_not_found")
         return jpeg
 
-    def receive(self, robot: str, job_id: str, jpeg: bytes) -> Observation:
+    def receive(self, robot: str, job_id: str, jpeg: bytes, owner: str | None = None) -> Observation:
         digest = sha256(jpeg).hexdigest()
 
         def claim_analysis(state: RobotState):
             job = state.observations.get(job_id)
-            if job is None:
+            if job is None or (owner is not None and job.owner != owner):
                 raise Rejected("observation_not_found")
             job = job.current(self.now())
             if job.status == Status.EXPIRED:
@@ -188,7 +203,7 @@ class DescribeScene:
         error = None
         try:
             self.images.put(job_id, jpeg)
-            description = self.describer.describe(jpeg).strip()
+            description = self.describer.describe(jpeg, job.question).strip()
             if not description:
                 error = "description_unavailable"
         except ImageUnavailable:
@@ -214,3 +229,4 @@ class DescribeScene:
         if result.status != Status.READY:
             self.discard_image(job_id)
         return result
+

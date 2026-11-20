@@ -178,6 +178,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun signOut() {
+        stopBridge()
         auth.signOut()
         _ui.update { it.copy(operator = null, cloud = CloudState.Unknown) }
     }
@@ -332,7 +333,8 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         say(Speaker.USER, clean, source = source)
         when (val cmd = CommandParser.parse(clean)) {
             Command.Stop -> { emergencyStop(); reply("Solicito detenerme.") }
-            Command.Describe -> describe()
+            Command.Describe -> describe(clean)
+            is Command.VisualQuestion -> describe(cmd.question)
             is Command.Look -> { setServo(cmd.angle); reply(lookText(cmd.angle)) }
             is Command.Sweep -> { if (!cmd.on) emergencyStop(); toggleSweep(cmd.on); reply(if (cmd.on) "Activo el barrido de la cámara." else "Detengo el barrido.") }
             is Command.Move -> {
@@ -370,7 +372,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ------------------------------------------------------------------ «¿Qué ves?» con Gemini
-    fun describe() {
+    fun describe(question: String = "¿Qué ves?") {
         val s = _ui.value
         when {
             !foreground -> return
@@ -386,7 +388,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
             _ui.update { it.copy(analyzing = true) }
             try {
                 val token = auth.idToken()
-                val obs = cloud.requestObservation(token)
+                val obs = cloud.requestObservation(token, question)
                 pendingDescribe = obs.id
                 val deadline = SystemClock.elapsedRealtime() + 35_000
                 var finished = false
@@ -445,28 +447,28 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ------------------------------------------------------------------ puente (dispositivo)
-    fun startBridge(token: String) {
-        if (token.length < 24 || !token.all { it.code in 33..126 }) {
-            say(Speaker.SYSTEM, "Token de dispositivo inválido. No se guarda.", alert = true); return
+    fun startBridge() {
+        if (_ui.value.operator == null) {
+            say(Speaker.SYSTEM, "Inicia sesión con Google para activar el puente.", alert = true); return
         }
         if (!foreground || _ui.value.robot != LinkState.ON) { say(Speaker.SYSTEM, "Conecta el robot y mantén la app visible.", alert = true); return }
         viewModelScope.launch {
             bridgeTransition.withLock {
                 bridgeJob?.cancelAndJoin()
-                if (!foreground) return@withLock
+                if (!foreground || _ui.value.operator == null) return@withLock
                 _ui.update { it.copy(bridgeOn = true) }
                 say(Speaker.SYSTEM, "Puente activo: solicitudes de la app y del panel web.")
                 bridgeJob = viewModelScope.launch {
                     try {
                         while (isActive) {
-                            when (val p = cloud.poll(token)) {
+                            when (val p = cloud.poll(auth.idToken())) {
                                 Poll.NoWork -> Unit
                                 is Poll.Job -> try {
-                                    handleJob(token, p.id, p.expiresAt)
+                                    handleJob(p.id, p.expiresAt)
                                 } catch (e: CancellationException) { throw e }
                                   catch (e: Exception) { say(Speaker.SYSTEM, "No se pudo enviar la foto: ${e.short()}", alert = true) }
                                 Poll.Unauthorized -> {
-                                    say(Speaker.SYSTEM, "Token rechazado. Puente detenido.", alert = true)
+                                    say(Speaker.SYSTEM, "Sesión sin autorización. Comprueba tu acceso a Cloud Run. Puente detenido.", alert = true)
                                     break
                                 }
                                 is Poll.Failed -> say(Speaker.SYSTEM, "Consulta HTTP ${p.code}.", alert = true)
@@ -491,7 +493,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private suspend fun handleJob(token: String, id: String, expiresAt: java.time.Instant) {
+    private suspend fun handleJob(id: String, expiresAt: java.time.Instant) {
         // La observación detiene la maniobra antes de reservar la cámara.
         emergencyStop()
         motionJob?.join()
@@ -504,7 +506,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
             framesById.put(id, bmp)
             _ui.update { it.copy(frame = bmp, frameCount = it.frameCount + 1) }
         }
-        val result = cloud.upload(token, id, jpeg)
+        val result = cloud.upload(auth.idToken(), id, jpeg)
         check(result.id == id) { "La respuesta no corresponde a la captura" }
         if (pendingDescribe != id && result.terminal && delivered.add(id)) {
             val text = result.description ?: "No se pudo describir la escena (${result.error ?: "error"})."
@@ -555,4 +557,5 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         super.onCleared()
     }
 }
+
 

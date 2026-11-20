@@ -47,7 +47,7 @@ fun SettingsSheet(
     onDismiss: () -> Unit,
     onConnect: (String, String) -> Unit,
     onCheckCloud: () -> Unit,
-    onStartBridge: (String) -> Unit,
+    onStartBridge: () -> Unit,
     onStopBridge: () -> Unit,
     onSignIn: () -> Unit,
     onSignOut: () -> Unit,
@@ -56,7 +56,6 @@ fun SettingsSheet(
     // Las claves viven solo en esta hoja: no se guardan ni sobreviven al cierre de la app.
     var ssid by remember { mutableStateOf("Carrito_CAM") }
     var password by remember { mutableStateOf("") }
-    var token by remember { mutableStateOf("") }
 
     val wifiPermissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -103,8 +102,8 @@ fun SettingsSheet(
 
             Section("3 · Puente de la cámara", if (state.bridgeOn) "Activo: atiende «¿Qué ves?»" else "Apagado")
             if (!state.bridgeOn) {
-                Field(token, { token = it }, "Token del dispositivo (no se guarda)", secret = true)
-                Primary("Iniciar puente", enabled = state.robot == LinkState.ON) { onStartBridge(token.trim()); token = "" }
+                Text("Usa tu sesión de Google automáticamente. No necesitas copiar un token.", color = Llm.Muted, fontSize = 13.sp)
+                Primary("Iniciar puente", enabled = state.robot == LinkState.ON && state.operator != null, onClick = onStartBridge)
             } else {
                 Secondary("Detener puente", onStopBridge)
             }
@@ -162,4 +161,5 @@ private fun Secondary(text: String, onClick: () -> Unit) {
         Text(text, color = Llm.Yellow, fontWeight = FontWeight.Bold)
     }
 }
+
 

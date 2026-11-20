@@ -27,6 +27,18 @@ class GeminiTests(TestCase):
         self.assertNotIn("tools", body)
         self.assertEqual(body["generationConfig"]["candidateCount"], 1)
 
+    def test_question_is_separate_from_system_rules_and_robot_is_not_the_target(self):
+        generate = Mock(return_value=result({"text": "No veo un perro en esta imagen."}))
+        VertexGeminiDescriber(generate).describe(scene("blue"), "Busca un perro y descríbelo")
+        body = generate.call_args.args[0]
+        self.assertEqual(body["contents"][0]["parts"][0]["text"],
+                         "Pregunta del operador: Busca un perro y descríbelo")
+        rules = body["systemInstruction"]["parts"][0]["text"]
+        self.assertIn("no presupongas que hay un robot visible", rules)
+        self.assertIn("no lo ves en esta imagen", rules)
+        self.assertNotIn("Busca un perro", rules)
+        self.assertNotIn("tools", body)
+
     def test_rejects_blocked_empty_partial_and_internal_only_responses(self):
         for response in (
             {"promptFeedback": {"blockReason": "SAFETY"}},
@@ -71,3 +83,4 @@ class GeminiTests(TestCase):
                                        "/locations/global/publishers/google/models/gemini-3.5-flash:generateContent")
         self.assertFalse(call.kwargs["allow_redirects"])
         self.assertEqual(call.kwargs["timeout"], 12)
+

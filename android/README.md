@@ -1,4 +1,4 @@
-# LLMia · app Android (v0.2.1)
+# LLMia · app Android (v0.3.0)
 
 App Kotlin + Jetpack Compose que hace dos cosas con la ESP32-CAM **sin reprogramar su firmware**:
 
@@ -56,7 +56,7 @@ Los tiempos están en `CommandParser.TIMES` y deben **calibrarse** con el robot 
 
 ### Para «¿Qué ves?» desde el teléfono (opcional)
 
-Sin esto la app igual maneja el robot y funciona como puente para el panel web.
+Sin Firebase la app puede manejar el robot; el puente requiere iniciar sesión.
 
 1. En la consola de Firebase del proyecto `proyectopersonal-480420`: **Agregar app → Android**, paquete `pe.edu.upn.llmia`, con la **huella SHA-1** de depuración (Android Studio → Gradle → `signingReport`).
 2. Habilitar **Google** en Authentication (ya lo usa el panel web).
@@ -69,10 +69,10 @@ llmia.firebase.projectId=proyectopersonal-480420
 llmia.firebase.webClientId=...
 ```
 
-4. Usar la **misma cuenta de Google** que ya está en `LLMIA_ALLOWED_UIDS` del backend.
-5. En la app: **Iniciar sesión con Google**, **Comprobar Cloud Run**, ingresar el token del dispositivo e **Iniciar puente**. Luego decir «¿Qué ves?».
+4. Usar cualquier cuenta de Google cuyo **UID de Firebase** esté en `LLMIA_ALLOWED_UIDS` del backend. Un compañero puede usar otro dispositivo y su propia cuenta: primero inicia sesión y luego el administrador incorpora su UID, conservando los UID existentes. No se autoriza por nombre ni por correo mostrado.
+5. En la app: **Iniciar sesión con Google**, **Comprobar Cloud Run** e **Iniciar puente**. No se introduce un token. Luego decir «¿Qué ves?» o «Busca un perro y descríbelo».
 
-El backend no cambia: la app usa el mismo contrato que el panel web (`POST /api/v1/robots/llmia-01/observations`) y el del dispositivo (`/device/v1/poll` y `PUT …/capture`).
+Requiere desplegar primero el backend v0.3: las nuevas rutas del puente están bajo `/api/v1/robots/llmia-01/bridge`. Usan el ID token de Firebase, obtenido por el SDK antes de cada petición y renovado si corresponde. El backend verifica firma, proyecto, revocación y UID permitido. El secreto permanente del dispositivo no se entrega a Android; queda para el simulador y clientes anteriores. Cada puente atiende solamente consultas creadas por su misma cuenta, incluso si otra cuenta usa el panel web.
 
 ## Archivos
 
@@ -89,7 +89,7 @@ El backend no cambia: la app usa el mismo contrato que el panel web (`POST /api/
 
 ## Credenciales
 
-La clave Wi-Fi y el token del dispositivo se escriben en Ajustes, viven solo en memoria y no se guardan. `local.properties` no se sube a Git. El token compartido del dispositivo sigue siendo solo para demos supervisadas.
+La clave Wi-Fi se escribe en Ajustes y vive solo en memoria. Firebase administra la persistencia y renovación de la sesión. No se copian ni registran tokens en logs. Cerrar sesión detiene el puente. `local.properties` no se sube a Git. El secreto del dispositivo sigue disponible solo para clientes anteriores y demos supervisadas.
 
 ## Cambios de control en v0.2.1
 
@@ -102,7 +102,7 @@ La clave Wi-Fi y el token del dispositivo se escriben en Ajustes, viven solo en 
 
 ### Verificación antes del uso físico
 
-En Windows: `gradlew.bat testDebugUnitTest assembleDebug lintDebug`. Sin datos Firebase, el APK permite probar control local y puente; el inicio de sesión requiere registrar la app Android y su SHA-1 en Firebase. El token de dispositivo se aprovisiona en memoria y no caduca por el solo hecho de cerrar la app: su revocación se administra en el backend.
+En Windows: `gradlew.bat testDebugUnitTest assembleDebug lintDebug`. Sin datos Firebase, el APK permite probar control local; el inicio de sesión requiere registrar la app Android y su SHA-1 en Firebase. El puente utiliza la sesión Firebase; volver del segundo plano requiere reactivarlo.
 
 Probar STOP con cámara lenta/sin respuesta, pérdida de Wi-Fi, cancelación de gesto, cambio de pantalla y resultado de voz tardío. Medir la parada ante un obstáculo durante el avance. No se da por aprobada ninguna de estas pruebas con el montaje real.
 
@@ -120,3 +120,12 @@ Sincroniza Gradle y vuelve a ejecutar la variante debug. En Ajustes aparece «Nu
 El modo requiere una red predeterminada con capacidades INTERNET y VALIDATED y excluye la red asignada al robot. Si hay celular validado, se mantiene su prioridad. Las llamadas siguen vinculadas por petición con `Network.openConnection`, sin cambiar la red global del proceso. El servidor HTTPS aprobado, la validación TLS y las credenciales se conservan.
 
 Para volver al modo normal, cambia el valor a `false` y recompila. Las variantes release fuerzan `false` aunque el archivo local tenga `true`. Este ajuste no conecta el emulador a Carrito_CAM, no habilita motores ni convierte la prueba de nube en una prueba de hardware.
+
+
+## Consultas visuales v0.3.0
+
+Texto y voz comparten la misma interpretación. Ejemplos: «Busca un perro y descríbelo», «¿De qué color es esa silla?» y «¿Hay un perro o un gato?». Cada consulta crea un ID y captura nuevos; no reutiliza una foto anterior. Máximo 500 caracteres. Si el objeto no es visible, el modelo debe decirlo. Buscar significa examinar el encuadre actual: no conduce el carrito ni gira automáticamente la cámara. Los movimientos siguen siendo órdenes locales explícitas y Gemini no tiene herramientas de control.
+
+El backend conserva la pregunta en el registro de esa observación y la pasa al adaptador de visión con el JPEG correspondiente. Si un cliente antiguo no envía pregunta, se aplica «¿Qué ves?». El modo simulador conserva sus respuestas de colores: no reconoce objetos.
+
+La versión nueva no está desplegada por el solo hecho de publicar código. Primero actualizar Cloud Run con la imagen de este commit, después instalar Android. No habilitar Cloud Testing ni Tool Results; las verificaciones usan pruebas JVM/compilación y el teléfono propio.

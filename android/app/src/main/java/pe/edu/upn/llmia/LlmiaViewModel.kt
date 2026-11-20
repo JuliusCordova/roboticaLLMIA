@@ -393,7 +393,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
                 val deadline = SystemClock.elapsedRealtime() + 35_000
                 var finished = false
                 while (SystemClock.elapsedRealtime() < deadline) {
-                    val current = try { cloud.observation(token, obs.id) }
+                    val current = try { cloud.observation(auth.idToken(), obs.id) }
                         catch (e: CancellationException) { throw e }
                         catch (e: CloudHttpException) { throw e }
                         catch (e: Exception) { null }

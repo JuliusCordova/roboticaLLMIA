@@ -143,7 +143,7 @@ def http_app(
     async def operator_capture(requested_robot: str, job_id: str, request: Request, owner: str = Depends(operator)):
         check_robot(requested_robot)
         # Authorize ownership before reading the image or calling the model.
-        use_case.get(robot_id, owner, job_id)
+        await run_in_threadpool(use_case.get, robot_id, owner, job_id)
         return await capture_response(job_id, request, owner)
 
     @app.post("/device/v1/poll", dependencies=[Depends(device)])

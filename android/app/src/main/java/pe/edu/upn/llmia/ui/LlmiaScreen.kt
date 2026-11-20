@@ -130,6 +130,7 @@ fun LlmiaScreen(vm: LlmiaViewModel, state: UiState) {
             }
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 QuickChip("👁 ¿Qué ves?") { send("¿Qué ves?") }
+                QuickChip("Busca un perro") { send("Busca un perro y descríbelo") }
                 QuickChip("Avanza un poco") { send("Avanza un poco") }
                 QuickChip("Gira a la izquierda") { send("Gira a la izquierda") }
                 QuickChip("Gira a la derecha") { send("Gira a la derecha") }
@@ -272,7 +273,7 @@ private fun InputBar(
         Spacer(Modifier.width(8.dp))
         OutlinedTextField(
             value = draft, onValueChange = onDraft, singleLine = true, modifier = Modifier.weight(1f),
-            placeholder = { Text("Escribe una orden…", color = Llm.Muted) },
+            placeholder = { Text("Pregunta u orden…", color = Llm.Muted) },
             shape = RoundedCornerShape(24.dp),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { onSend() }),
@@ -292,3 +293,4 @@ private fun InputBar(
         }
     }
 }
+

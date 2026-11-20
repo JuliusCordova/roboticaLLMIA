@@ -98,6 +98,17 @@ class CloudAdapterTests(TestCase):
         self.assertEqual(wire["observations"][0]["status"], "LISTA")
         self.assertNotIn("jpeg", wire["observations"][0])
 
+    def test_firestore_reads_old_records_and_preserves_visual_question(self):
+        from llmia.cloud import FirestoreObservations
+        old = {"id": "old", "robot": "llmia-01", "owner": "companion",
+               "expires_at": datetime(2026, 11, 19, tzinfo=UTC), "status": "PENDIENTE"}
+        state = FirestoreObservations.decode({"observations": [old]})
+        self.assertEqual(state.observations["old"].question, "¿Qué ves?")
+        question = "Busca un perro y descríbelo"
+        directed = {**old, "id": "new", "question": question}
+        state = FirestoreObservations.decode({"observations": [directed]})
+        self.assertEqual(FirestoreObservations.encode(state)["observations"][0]["question"], question)
+
     def test_firestore_writes_changed_state_inside_transaction_only(self):
         client, now = Mock(), datetime.now(UTC)
         repo = self.firestore(client)
@@ -123,3 +134,4 @@ class CloudAdapterTests(TestCase):
         blob.upload_from_string.assert_called_once_with(
             jpeg, content_type="image/jpeg", if_generation_match=0, timeout=8, retry=None,
         )
+

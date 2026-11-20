@@ -22,7 +22,7 @@ Fecha: 19 de noviembre de 2026, Lima. Incremento Android 0.3.0, sobre la rama `f
 
 ## Pruebas
 
-Backend: 34 pruebas locales pasaron, incluyendo cuenta de compañero, 401/403, aislamiento entre propietarios, robot incorrecto, cuerpo inválido, pregunta transmitida con JPEG y compatibilidad antigua. Pruebas nuevas JVM para consultas visuales y prioridad de STOP incluidas; compilación, lint y ejecución completa se comprueban en GitHub Actions. No se usa Firebase Test Lab ni dispositivos de nube.
+Backend: 35 pruebas locales pasaron, incluyendo cuenta de compañero, 401/403, aislamiento entre propietarios, robot incorrecto, cuerpo inválido, pregunta transmitida con JPEG y compatibilidad antigua y lectura de registros Firestore sin pregunta. Pruebas nuevas JVM para consultas visuales y prioridad de STOP incluidas; compilación, lint y ejecución completa se comprueban en GitHub Actions. No se usa Firebase Test Lab ni dispositivos de nube.
 
 ## Orden de instalación y aceptación pendiente
 

@@ -24,6 +24,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
+import pe.edu.upn.llmia.command.CameraSearch
+import pe.edu.upn.llmia.command.VisualMatch
+import pe.edu.upn.llmia.command.ConversationContext
 import kotlin.coroutines.coroutineContext
 import pe.edu.upn.llmia.auth.OperatorAuth
 import pe.edu.upn.llmia.command.Command
@@ -83,6 +88,7 @@ data class UiState(
     val messages: List<ChatMessage> = emptyList(),
     val obstacleAt: Long = 0L,
     val analyzing: Boolean = false,
+    val searching: Boolean = false,
 )
 
 class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
@@ -100,6 +106,8 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     private var motionJob: Job? = null
     private var bridgeJob: Job? = null
     private var sensorsJob: Job? = null
+    private var visualJob: Job? = null
+    private val conversation = ConversationContext()
     private val bridgeTransition = Mutex()
     private var foreground = false
     private val framesById = ObservationImages<ImageBitmap>()
@@ -172,12 +180,14 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun signIn(activity: Activity) = viewModelScope.launch {
+        resetConversation()
         runCatching { auth.signIn(activity) }
             .onSuccess { name -> _ui.update { it.copy(operator = name) }; say(Speaker.SYSTEM, "Sesión iniciada: $name") }
             .onFailure { say(Speaker.SYSTEM, "No se pudo iniciar sesión: ${it.short()}", alert = true) }
     }
 
     fun signOut() {
+        resetConversation()
         stopBridge()
         auth.signOut()
         _ui.update { it.copy(operator = null, cloud = CloudState.Unknown) }
@@ -216,6 +226,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     // ------------------------------------------------------------------ movimiento
     /** Flechas: se mueve mientras el dedo siga apoyado. */
     fun holdStart(direction: Direction) {
+        if (_ui.value.searching) { reply("La búsqueda usa solo la cámara. Pulsa STOP para cancelarla."); return }
         if (!foreground || _ui.value.robot != LinkState.ON) { say(Speaker.SYSTEM, "Conecta el robot y mantén la app visible.", alert = true); return }
         holding = true
         startMotion { drive(direction, Long.MAX_VALUE) }
@@ -229,7 +240,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         motionJob = viewModelScope.launch {
             withContext(NonCancellable) { previous?.cancelAndJoin() }
             coroutineContext.ensureActive()
-            if (!foreground) return@launch
+            if (!foreground || _ui.value.searching) return@launch
             block()
         }
     }
@@ -242,6 +253,11 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun emergencyStop() {
+        cancelVisual()
+        stopWheels()
+    }
+
+    private fun stopWheels() {
         voice.cancelListening()
         _ui.update { it.copy(listening = false, partial = "", level = 0f) }
         holding = false
@@ -313,13 +329,13 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------ servo
     fun setServo(angle: Int) {
-        if (!foreground || _ui.value.moving != null) return
+        if (!foreground || _ui.value.moving != null || _ui.value.searching) return
         _ui.update { it.copy(servoAngle = angle, sweeping = false) }
-        viewModelScope.launch { runCatching { robot.servo(angle) } }
+        viewModelScope.launch { if (!_ui.value.searching) runCatching { robot.servo(angle) } }
     }
 
     fun toggleSweep(want: Boolean? = null) = viewModelScope.launch {
-        if (!foreground || _ui.value.moving != null) return@launch
+        if (!foreground || _ui.value.moving != null || _ui.value.searching) return@launch
         if (want != null && want == _ui.value.sweeping) return@launch
         runCatching { robot.toggleSweep() }
             .onSuccess { on -> _ui.update { it.copy(sweeping = on) } }
@@ -331,13 +347,21 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         val clean = text.trim()
         if (clean.isEmpty() || !foreground) return
         say(Speaker.USER, clean, source = source)
-        when (val cmd = CommandParser.parse(clean)) {
+        val parsed = CommandParser.parse(clean)
+        if (_ui.value.searching && parsed != Command.Stop && parsed != Command.NewConversation) {
+            reply("Estoy buscando con la cámara. Pulsa STOP para cancelar antes de otra orden.")
+            return
+        }
+        when (val cmd = parsed) {
             Command.Stop -> { emergencyStop(); reply("Solicito detenerme.") }
             Command.Describe -> describe(clean)
+            is Command.Search -> startVisual("Busca ${cmd.target} y descríbelo", cmd.target)
+            Command.NewConversation -> { resetConversation(); reply("Empezamos una nueva conversación.") }
             is Command.VisualQuestion -> describe(cmd.question)
             is Command.Look -> { setServo(cmd.angle); reply(lookText(cmd.angle)) }
             is Command.Sweep -> { if (!cmd.on) emergencyStop(); toggleSweep(cmd.on); reply(if (cmd.on) "Activo el barrido de la cámara." else "Detengo el barrido.") }
             is Command.Move -> {
+                if (_ui.value.searching) { reply("Pulsa STOP para terminar la búsqueda antes de conducir."); return }
                 if (_ui.value.robot != LinkState.ON) { reply("Necesito la conexión con el robot para moverme."); return }
                 val extra = if (cmd.direction == Direction.BACK) " Ojo: atrás no tengo sensor." else ""
                 reply("${cmd.direction.spoken} ${"%.1f".format(cmd.millis / 1000.0)} s.$extra")
@@ -363,7 +387,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
             onPartial = { p ->
                 _ui.update { it.copy(partial = p) }
                 // «para» se ejecuta apenas se escucha, sin esperar el final de la frase
-                if (CommandParser.parse(p) == Command.Stop && _ui.value.moving != null) emergencyStop()
+                if (CommandParser.parse(p) == Command.Stop && (_ui.value.moving != null || _ui.value.searching)) emergencyStop()
             },
             onResult = { text -> submit(text, Source.VOICE) },
             onError = { msg -> say(Speaker.SYSTEM, msg, alert = true) },
@@ -372,55 +396,134 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ------------------------------------------------------------------ «¿Qué ves?» con Gemini
-    fun describe(question: String = "¿Qué ves?") {
+    fun describe(question: String = "¿Qué ves?") = startVisual(question)
+
+    private fun cancelVisual() {
+        pendingDescribe?.let { delivered.add(it) }
+        visualJob?.cancel()
+    }
+
+    fun resetConversation() {
+        cancelVisual()
+        conversation.reset()
+    }
+
+    fun newConversation() {
+        resetConversation()
+        say(Speaker.SYSTEM, "Nueva conversación: las próximas preguntas empiezan sin contexto anterior.")
+    }
+
+    private fun startVisual(question: String, target: String? = null) {
         val s = _ui.value
         when {
             !foreground -> return
             s.robot != LinkState.ON -> { reply("Conecta el robot para tomar la foto."); return }
             !s.bridgeOn -> { reply("Activa el puente en Ajustes para enviar la foto a Gemini."); return }
-            s.operator == null -> { reply("Inicia sesión de operador en Ajustes, o pregunta desde el panel web."); return }
-            s.analyzing -> { reply("Sigo analizando la foto anterior."); return }
+            s.operator == null -> { reply("Inicia sesión de operador en Ajustes."); return }
+            s.analyzing -> { reply("Sigo analizando. Pulsa STOP para cancelar."); return }
         }
-        emergencyStop()
-        _ui.update { it.copy(analyzing = true) }
-        viewModelScope.launch {
-            val bubble = say(Speaker.LLMIA, "Mirando…", stage = "Creando la solicitud")
-            _ui.update { it.copy(analyzing = true) }
+        stopWheels()
+        val version = conversation.version
+        _ui.update { it.copy(analyzing = true, searching = target != null) }
+        visualJob = viewModelScope.launch {
+            var pausedSensors = false
             try {
-                val token = auth.idToken()
-                val obs = cloud.requestObservation(token, question)
-                pendingDescribe = obs.id
-                val deadline = SystemClock.elapsedRealtime() + 35_000
-                var finished = false
-                while (SystemClock.elapsedRealtime() < deadline) {
-                    val current = try { cloud.observation(auth.idToken(), obs.id) }
-                        catch (e: CancellationException) { throw e }
-                        catch (e: CloudHttpException) { throw e }
-                        catch (e: Exception) { null }
-                    if (current != null) {
-                        updateMessage(bubble) { it.copy(stage = stageText(current.status)) }
-                        check(current.id == obs.id) { "Respuesta de otra observacion" }
-                        if (current.terminal) { finish(bubble, current, null); finished = true; break }
+                if (target == null) {
+                    observe(question, version)
+                } else {
+                    sensorsJob?.cancelAndJoin()
+                    pausedSensors = true
+                    var last: Observation? = null
+                    val result = withTimeout(CameraSearch.TIMEOUT_MS) {
+                        CameraSearch.run(
+                            confirmStop = {
+                                motionJob?.join()
+                                robot.stop()
+                            },
+                            pointAndSettle = { angle ->
+                                robot.servo(angle) // además desactiva el barrido en el firmware existente
+                                _ui.update { it.copy(servoAngle = angle, sweeping = false) }
+                                say(Speaker.SYSTEM, "Buscando $target: cámara ${lookText(angle).lowercase()} (sin mover ruedas).")
+                                delay(CameraSearch.SETTLE_MS)
+                                // Vaciar los dos buffers de cámara que pueden preceder al cambio de ángulo.
+                                repeat(2) { robot.capture() }
+                            },
+                            inspect = { angle ->
+                                last = observe("$question. Cámara orientada hacia ${angleLabel(angle)}.", version, target)
+                                when (last?.match) {
+                                    "FOUND" -> VisualMatch.FOUND
+                                    "NOT_FOUND" -> VisualMatch.NOT_FOUND
+                                    else -> VisualMatch.UNCERTAIN
+                                }
+                            },
+                        )
                     }
-                    delay(900)
+                    when (result.match) {
+                        VisualMatch.FOUND -> reply("Encontré $target mirando hacia ${angleLabel(result.angle!!)}. ${last?.description.orEmpty()}")
+                        VisualMatch.NOT_FOUND -> reply("No vi $target en las tres vistas revisadas. Puede estar fuera del campo de la cámara.")
+                        VisualMatch.UNCERTAIN -> reply("No pude confirmar si hay $target. Revisa la iluminación o acerca el objeto a la cámara.")
+                    }
                 }
-                if (!finished) finish(bubble, null, "La solicitud venció. Intenta de nuevo.")
+            } catch (e: TimeoutCancellationException) {
+                pendingDescribe?.let { delivered.add(it) }
+                say(Speaker.SYSTEM, "Búsqueda detenida: se alcanzó el límite de tiempo.", alert = true)
             } catch (e: CancellationException) {
+                pendingDescribe?.let { delivered.add(it) }
                 throw e
-            } catch (e: CloudHttpException) {
-                val msg = when (e.code) {
-                    401 -> "El panel no reconoció la sesión. Vuelve a iniciar sesión."
-                    403 -> "Tu cuenta no tiene permiso sobre este robot."
-                    409 -> "Ya hay una foto en análisis para este robot."
-                    else -> "La nube respondió ${e.code}."
-                }
-                updateMessage(bubble) { it.copy(text = msg, stage = null, alert = true) }
             } catch (e: Exception) {
-                updateMessage(bubble) { it.copy(text = "No pude consultar la nube: ${e.short()}", stage = null, alert = true) }
+                val message = if (e is CloudHttpException) when (e.code) {
+                    401 -> "Sesión rechazada. Inicia sesión nuevamente."
+                    403 -> "Tu cuenta no tiene permiso sobre este robot."
+                    404 -> "El contexto ya no está disponible. Pulsa Nueva conversación e intenta otra vez."
+                    409 -> "Hay una solicitud activa o contexto sin terminar. Espera y vuelve a intentar."
+                    else -> "La nube respondió HTTP ${e.code}."
+                } else "Consulta interrumpida: ${e.short()}"
+                say(Speaker.SYSTEM, message, alert = true)
             } finally {
                 pendingDescribe = null
-                _ui.update { it.copy(analyzing = false) }
+                _ui.update { it.copy(analyzing = false, searching = false) }
+                if (pausedSensors && foreground && _ui.value.robot == LinkState.ON) startSensors()
             }
+        }
+    }
+
+    private fun angleLabel(angle: Int) = when {
+        angle < 60 -> "la izquierda"
+        angle > 120 -> "la derecha"
+        else -> "el centro"
+    }
+
+    private suspend fun observe(question: String, version: Long, target: String? = null): Observation {
+        val bubble = say(Speaker.LLMIA, "Mirando…", stage = "Creando la solicitud")
+        try {
+            val obs = cloud.requestObservation(auth.idToken(), question, conversation.parentId, target)
+            pendingDescribe = obs.id
+            val deadline = SystemClock.elapsedRealtime() + 35_000
+            while (SystemClock.elapsedRealtime() < deadline) {
+                coroutineContext.ensureActive()
+                val current = cloud.observation(auth.idToken(), obs.id)
+                check(current.id == obs.id) { "Respuesta de otra observación" }
+                updateMessage(bubble) { it.copy(stage = stageText(current.status)) }
+                if (current.terminal) {
+                    check(foreground && conversation.version == version) { "Conversación reiniciada" }
+                    if (current.status == "LISTA") conversation.remember(current.id, version)
+                    finish(bubble, current, null, speak = target == null)
+                    check(current.status == "LISTA") { "No se completó la captura: ${current.error ?: current.status}" }
+                    return current
+                }
+                delay(900)
+            }
+            error("La solicitud venció. Intenta de nuevo.")
+        } catch (e: CancellationException) {
+            updateMessage(bubble) { it.copy(text = "Consulta cancelada.", stage = null) }
+            throw e
+        } catch (e: Exception) {
+            updateMessage(bubble) { it.copy(text = "No se completó la consulta.", stage = null, alert = true) }
+            throw e
+        } finally {
+            // Cancelar no borra ni relanza el trabajo ya aceptado por el servidor.
+            pendingDescribe?.let { delivered.add(it) }
+            pendingDescribe = null
         }
     }
 
@@ -432,7 +535,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Publica el resultado una sola vez por ID (puede llegar por el puente o por la consulta). */
-    private fun finish(bubbleId: Long, obs: Observation?, failure: String?) {
+    private fun finish(bubbleId: Long, obs: Observation?, failure: String?, speak: Boolean = true) {
         val id = obs?.id
         val speakOnce = id != null && delivered.add(id)
         val text = when {
@@ -443,7 +546,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         }
         val ok = obs?.status == "LISTA"
         updateMessage(bubbleId) { it.copy(text = text, stage = null, alert = !ok, image = framesById.get(id)) }
-        if (ok && speakOnce) voice.speak(text)
+        if (ok && speakOnce && speak) voice.speak(text)
     }
 
     // ------------------------------------------------------------------ puente (dispositivo)
@@ -484,6 +587,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun stopBridge() {
+        cancelVisual()
         viewModelScope.launch {
             bridgeTransition.withLock {
                 bridgeJob?.cancelAndJoin()
@@ -495,9 +599,10 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun handleJob(id: String, expiresAt: java.time.Instant) {
         // La observación detiene la maniobra antes de reservar la cámara.
-        emergencyStop()
+        stopWheels()
         motionJob?.join()
         coroutineContext.ensureActive()
+        check(robot.stop()) { "STOP sin confirmación; no se captura" }
         check(expiresAt.isAfter(java.time.Instant.now())) { "Solicitud vencida antes de capturar" }
         val jpeg = robot.capture()
         check(expiresAt.isAfter(java.time.Instant.now())) { "Solicitud vencida antes de enviar" }
@@ -541,6 +646,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         foreground = false
         robot.invalidateMotion()
         motionJob?.cancel()
+        visualJob?.cancel()
         bridgeJob?.cancel()
         sensorsJob?.cancel()
         // Mantener la red hasta terminar la limpieza de la maniobra y pedir STOP.

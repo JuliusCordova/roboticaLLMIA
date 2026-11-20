@@ -96,3 +96,9 @@ Este incremento amplía el alcance inicial anterior para incluir el cliente Andr
 | US-06 | Como operador, quiero preguntar por un objeto de la escena por texto o voz. | «Busca un perro y descríbelo» crea captura e ID nuevos, transmite la pregunta con ese JPEG y responde con evidencia visible o ausencia/incertidumbre. No produce comandos de movimiento. |
 
 Contrato adicional: POST `/api/v1/robots/{robot_id}/bridge/poll` y PUT `/api/v1/robots/{robot_id}/bridge/observations/{id}/capture`, ambas con Firebase Bearer y propiedad de la observación. POST observations admite JSON `{ "question": "Busca un perro y descríbelo" }`, máximo 500 caracteres; sin cuerpo usa «¿Qué ves?». El registro persistido incluye `question`. Las rutas antiguas del dispositivo conservan su credencial separada. Ver [punto de control](../docs/PUNTO_DE_CONTROL_2026-11-19_VISION_SESION.md) para pruebas y límites.
+
+## Ampliación 0.4: contexto y búsqueda con servo
+
+US-07: el operador encadena preguntas usando `parent_id` del mismo propietario, con hasta tres intercambios anteriores construidos en el servidor y foto nueva. «Nueva conversación» reinicia el contexto local. El historial nunca es evidencia visual actual.
+
+US-08: Android busca un objetivo explícito en hasta tres posiciones de cámara (90°, 30°, 150°), únicamente tras STOP confirmado y sin comandos de movimiento de ruedas. `target` opcional identifica el objeto; respuesta `match` = FOUND/NOT_FOUND/UNCERTAIN validada como JSON. STOP, segundo plano y pérdida de conexión cancelan la secuencia. El firmware permanece sin cambios. La aceptación física y los límites se describen en [el punto de control](../docs/PUNTO_DE_CONTROL_2026-11-19_CONTEXTO_BUSQUEDA.md).

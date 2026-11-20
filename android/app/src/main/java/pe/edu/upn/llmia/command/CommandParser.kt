@@ -14,6 +14,8 @@ sealed interface Command {
     data class Move(val direction: Direction, val millis: Long) : Command
     data object Stop : Command
     data object Describe : Command
+    data class Search(val target: String) : Command
+    data object NewConversation : Command
     data class VisualQuestion(val question: String) : Command
     data class Look(val angle: Int) : Command      // servo: 0 = izquierda, 90 = centro, 180 = derecha
     data class Sweep(val on: Boolean) : Command
@@ -64,11 +66,19 @@ object CommandParser {
         if (text in setOf("para el barrido", "deten el barrido", "desactiva el barrido", "apaga el barrido")) {
             return Command.Sweep(false)
         }
+        if (text in setOf("nueva conversacion", "reinicia la conversacion", "olvida la conversacion")) return Command.NewConversation
         if (has(STOP)) return Command.Stop
         // Las consultas visuales solo producen una foto y texto: nunca MOVE ni servo.
         val visual = text.replaceFirst(Regex("^llmia[,.]?\\s+"), "").removePrefix("por favor ")
+        val search = Regex("^(?:busca|buscar|encuentra|localiza) (.+?)(?: con la camara)?(?: y describelo| y describela)?$").matchEntire(visual)
+        if (search != null) {
+            val target = search.groupValues[1].trim()
+            val forbidden = setOf("y", "o", "luego", "despues", "no", "ni", "sin", "avanza", "avanzar", "mueve", "muevete", "gira", "camina", "sigue", "acercate", "hasta")
+            return if (target.length in 1..80 && target.split(' ').none { it in forbidden }) Command.Search(target)
+                else Command.Unknown(raw)
+        }
         if (raw.trim().length <= 500 &&
-            Regex("^(?:busca|buscar|encuentra|localiza|describe|describeme|que ves|que observas|que hay|que es|que color|de que color|que animal|que objeto|que tipo|que raza|cuantos|cuantas|donde|cual|como es|hay|ves|puedes ver|puedes describir|puedes buscar)\\b.*").matches(visual) &&
+            Regex("^(?:y )?(?:describe|describeme|que ves|que observas|que hay|que es|que color|de que color|que animal|que objeto|que tipo|que raza|y de que color|describelo|describela|cuantos|cuantas|donde|cual|como es|de que tamano|hay|ves|puedes ver|puedes describir|puedes buscar)\\b.*").matches(visual) &&
             visual !in setOf("que ves", "que observas", "que hay", "que hay adelante", "describe la escena",
                 "describe el entorno", "describeme la escena", "que es eso")) {
             return Command.VisualQuestion(raw.trim())

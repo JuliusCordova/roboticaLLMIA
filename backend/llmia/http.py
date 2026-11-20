@@ -6,7 +6,7 @@ from pathlib import Path
 from secrets import compare_digest
 from typing import Callable
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
@@ -27,6 +27,7 @@ MAX_JPEG = 512 * 1024
 MAX_PIXELS = 2_100_000
 ERRORS = {
     "capture_already_active": 409,
+    "context_not_ready": 409,
     "capture_not_claimed": 409,
     "capture_timeout": 410,
     "observation_not_found": 404,
@@ -39,6 +40,13 @@ ERRORS = {
 class ObservationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     question: str = DEFAULT_QUESTION
+    parent_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+    target: str | None = Field(default=None, min_length=1, max_length=80)
+
+    @field_validator("target")
+    @classmethod
+    def valid_target(cls, value):
+        return validate_question(value) if value is not None else None
 
     @field_validator("question")
     @classmethod
@@ -54,6 +62,9 @@ def payload(job: Observation):
         "expires_at": job.expires_at.isoformat(),
         "description": job.description,
         "question": job.question,
+        "parent_id": job.parent_id,
+        "target": job.target,
+        "match": job.match,
         "error": job.error,
         "image_url": f"/api/v1/observations/{job.id}/image" if job.status == Status.READY else None,
     }
@@ -114,7 +125,8 @@ def http_app(
     @app.post("/api/v1/robots/{robot_id}/observations", status_code=202)
     def create_observation(request: Request, body: ObservationRequest | None = None, owner: str = Depends(operator)):
         check_robot(request.path_params["robot_id"])
-        return payload(use_case.request(robot_id, owner, body.question if body else DEFAULT_QUESTION))
+        body = body or ObservationRequest()
+        return payload(use_case.request(robot_id, owner, body.question, body.parent_id, body.target))
 
     @app.get("/api/v1/observations/{job_id}")
     def read_observation(job_id: str, owner: str = Depends(operator)):

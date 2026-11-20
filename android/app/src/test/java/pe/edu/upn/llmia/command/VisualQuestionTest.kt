@@ -5,10 +5,17 @@ import org.junit.Test
 
 class VisualQuestionTest {
     @Test fun visualQuestionsKeepOriginalTextAndNeverMove() {
-        listOf("Busca un perro y descríbelo", "¿De qué color es esa silla?", "¿Hay un perro o un gato?",
-            "Describe lo que está a la izquierda", "Encuentra una botella", "Busca un perro y avanza").forEach {
+        listOf("¿De qué color es esa silla?", "¿Hay un perro o un gato?",
+            "Describe lo que está a la izquierda", "¿Y de qué color es?").forEach {
             assertEquals(Command.VisualQuestion(it), CommandParser.parse(it))
         }
+    }
+    @Test fun searchUsesOnlyExplicitTargetsAndRejectsCompoundMovement() {
+        assertEquals(Command.Search("un perro"), CommandParser.parse("Busca un perro y descríbelo"))
+        assertEquals(Command.Search("una botella"), CommandParser.parse("Encuentra una botella con la cámara"))
+        assertTrue(CommandParser.parse("busca un perro y avanza") is Command.Unknown)
+        assertTrue(CommandParser.parse("busca un perro o un gato") is Command.Unknown)
+        assertEquals(Command.NewConversation, CommandParser.parse("Nueva conversación"))
     }
     @Test fun stopStillHasPriority() {
         assertEquals(Command.Stop, CommandParser.parse("para y busca un perro"))

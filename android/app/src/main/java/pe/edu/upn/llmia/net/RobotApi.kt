@@ -84,7 +84,8 @@ class RobotApi(private val network: () -> Network?) {
     suspend fun servo(angle: Int) = withContext(Dispatchers.IO) {
         io.withLock {
             check(!permit.isMoving()) { "Servo pausado durante el movimiento" }
-            Http.exchange(net(), "$base/servo?angulo=${angle.coerceIn(0, 180)}", maxResponse = 256, connectMs = 1_500, readMs = 2_000)
+            val (code, body) = Http.exchange(net(), "$base/servo?angulo=${angle.coerceIn(0, 180)}", maxResponse = 256, connectMs = 1_500, readMs = 2_000)
+            check(code == 200 && body.toString(Charsets.UTF_8).trim() == "SERVO OK") { "Servo sin confirmación" }
         }
         Unit
     }
@@ -98,3 +99,4 @@ class RobotApi(private val network: () -> Network?) {
         }
     }
 }
+

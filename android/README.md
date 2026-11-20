@@ -1,4 +1,4 @@
-# LLMia · app Android (v0.3.0)
+# LLMia · app Android (v0.4.0)
 
 App Kotlin + Jetpack Compose que hace dos cosas con la ESP32-CAM **sin reprogramar su firmware**:
 
@@ -129,3 +129,13 @@ Texto y voz comparten la misma interpretación. Ejemplos: «Busca un perro y des
 El backend conserva la pregunta en el registro de esa observación y la pasa al adaptador de visión con el JPEG correspondiente. Si un cliente antiguo no envía pregunta, se aplica «¿Qué ves?». El modo simulador conserva sus respuestas de colores: no reconoce objetos.
 
 La versión nueva no está desplegada por el solo hecho de publicar código. Primero actualizar Cloud Run con la imagen de este commit, después instalar Android. No habilitar Cloud Testing ni Tool Results; las verificaciones usan pruebas JVM/compilación y el teléfono propio.
+
+## Conversación con contexto y búsqueda v0.4
+
+«¿Qué ves?» → «¿Y de qué color es?» conserva hasta tres intercambios propios en el backend. Cada pregunta toma una foto nueva; el historial no demuestra que el objeto siga visible. Usa «Nueva conversación» (botón o voz) para empezar sin contexto previo. Cerrar sesión también lo reinicia. Si una referencia fue eliminada por el límite de retención, inicia una conversación nueva.
+
+«Busca un perro y descríbelo» o «Encuentra una botella con la cámara» inicia una búsqueda finita: STOP confirmado, cámara al centro/izquierda/derecha y hasta tres fotos analizadas. No se mueven ruedas. Cada posición espera al servo y vacía los buffers antes de la foto de consulta. Un hallazgo detiene la secuencia; ausencia e incertidumbre se distinguen. El sensor y vista previa se pausan durante la búsqueda y se reanudan al finalizar.
+
+STOP cancela la búsqueda. La app bloquea conducción, servo manual y nuevas consultas durante la secuencia. No puede cancelar físicamente un objetivo de servo ya enviado ni una inferencia aceptada por Cloud Run. No uses simultáneamente otro controlador del carrito. Máximo tres inferencias por búsqueda; validar en el montaje los tiempos y el campo visual del servo. El modo simulador no detecta objetos y devuelve incertidumbre.
+
+Requiere desplegar el backend 0.4 antes de instalar Android 0.4. No requiere cargar firmware nuevo. Ver [aceptación y punto de control](../docs/PUNTO_DE_CONTROL_2026-11-19_CONTEXTO_BUSQUEDA.md).

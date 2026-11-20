@@ -129,6 +129,7 @@ fun LlmiaScreen(vm: LlmiaViewModel, state: UiState) {
                 )
             }
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                QuickChip("Nueva conversación") { vm.newConversation() }
                 QuickChip("👁 ¿Qué ves?") { send("¿Qué ves?") }
                 QuickChip("Busca un perro") { send("Busca un perro y descríbelo") }
                 QuickChip("Avanza un poco") { send("Avanza un poco") }

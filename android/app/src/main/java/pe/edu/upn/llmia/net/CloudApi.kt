@@ -12,6 +12,7 @@ data class Observation(
     val status: String,          // PENDIENTE | RECLAMADA | ANALIZANDO | LISTA | ERROR | VENCIDA
     val description: String?,
     val error: String?,
+    val match: String? = null,
 ) {
     val terminal get() = status in setOf("LISTA", "ERROR", "VENCIDA")
 
@@ -23,6 +24,7 @@ data class Observation(
                 status = o.optString("status"),
                 description = o.optString("description").takeIf { it.isNotBlank() && it != "null" },
                 error = o.optString("error").takeIf { it.isNotBlank() && it != "null" },
+                match = o.optString("match").takeIf { it in setOf("FOUND", "NOT_FOUND", "UNCERTAIN") },
             )
         }
     }
@@ -95,9 +97,13 @@ class CloudApi(
         Observation.parse(body)
     }
 
-    suspend fun requestObservation(operatorToken: String, question: String = "¿Qué ves?"): Observation = withContext(Dispatchers.IO) {
+    suspend fun requestObservation(operatorToken: String, question: String = "¿Qué ves?",
+                                   parentId: String? = null, target: String? = null): Observation = withContext(Dispatchers.IO) {
         val (code, body) = Http.exchange(net(), "$origin/api/v1/robots/$robotId/observations", "POST",
-            "Bearer $operatorToken", JSONObject().put("question", question).toString().toByteArray(Charsets.UTF_8), "application/json")
+            "Bearer $operatorToken", JSONObject().put("question", question).apply {
+                if (parentId != null) put("parent_id", parentId)
+                if (target != null) put("target", target)
+            }.toString().toByteArray(Charsets.UTF_8), "application/json")
         if (code != 202) throw CloudHttpException(code, body.toString(Charsets.UTF_8).take(80))
         Observation.parse(body)
     }

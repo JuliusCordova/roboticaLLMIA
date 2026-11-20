@@ -39,6 +39,32 @@ class GeminiTests(TestCase):
         self.assertNotIn("Busca un perro", rules)
         self.assertNotIn("tools", body)
 
+    def test_location_uses_schema_and_validates_uncertainty_and_bad_results(self):
+        import json
+        for match in ("FOUND", "NOT_FOUND", "UNCERTAIN"):
+            generate = Mock(return_value=result({"text": json.dumps({"match": match, "description": "Una botella."})}))
+            finding = VertexGeminiDescriber(generate).locate(scene("blue"), "botella", "Busca una botella")
+            self.assertEqual(finding.match, match)
+            body = generate.call_args.args[0]
+            self.assertEqual(body["generationConfig"]["responseMimeType"], "application/json")
+            self.assertEqual(body["generationConfig"]["responseSchema"]["properties"]["match"]["enum"],
+                             ["FOUND", "NOT_FOUND", "UNCERTAIN"])
+            self.assertNotIn("tools", body)
+        for text in ('no json', '{"match":"MOVE","description":"Avanza"}',
+                     '{"match":true,"description":"Veo algo"}', '{"match":"FOUND","description":""}',
+                     '{"match":"FOUND","description":"Veo algo","angle":180}'):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                VertexGeminiDescriber(lambda _: result({"text": text})).locate(scene("blue"), "botella", "Busca una botella")
+
+    def test_context_is_data_and_current_image_remains_the_visual_evidence(self):
+        generate = Mock(return_value=result({"text": "Ahora no veo la botella."}))
+        history = [{"question": "Busca botella", "answer": "Veo una botella azul"}]
+        VertexGeminiDescriber(generate).describe(scene("red"), "¿De qué color es?", history)
+        body = generate.call_args.args[0]
+        self.assertIn("no prueba de lo visible ahora", body["systemInstruction"]["parts"][0]["text"])
+        self.assertIn("Veo una botella azul", body["contents"][0]["parts"][2]["text"])
+        self.assertEqual(b64decode(body["contents"][0]["parts"][1]["inlineData"]["data"]), scene("red"))
+
     def test_rejects_blocked_empty_partial_and_internal_only_responses(self):
         for response in (
             {"promptFeedback": {"blockReason": "SAFETY"}},

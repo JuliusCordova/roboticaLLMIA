@@ -5,7 +5,7 @@ App Kotlin + Jetpack Compose que hace dos cosas con la ESP32-CAM **sin reprogram
 1. **Maneja el robot** por la red local `Carrito_CAM`, con flechas, texto o voz.
 2. **Hace de puente** entre la cámara y Cloud Run, para que Gemini describa lo que ve («¿Qué ves?»).
 
-> Estado: correcciones de integración y control, con pruebas automatizadas. La prueba física del Android con el robot sigue pendiente. Comenzar con los motores desconectados y luego con las ruedas elevadas.
+> Estado: cámara, distancia y puente anterior con token reportados funcionando por Julius en Android físico. La integración v0.3 (sesión automática y preguntas dirigidas) tiene pruebas automatizadas y compilación verificada; su prueba física sigue pendiente. Ver el [punto de control](../docs/PUNTO_DE_CONTROL_2026-11-19_VISION_SESION.md).
 
 ## Qué trae la interfaz
 
@@ -49,7 +49,7 @@ Los tiempos están en `CommandParser.TIMES` y deben **calibrarse** con el robot 
 ## Abrir y ejecutar
 
 1. En PowerShell, dentro de la carpeta: `powershell -ExecutionPolicy Bypass -File .\bootstrap-wrapper.ps1`.
-2. Android Studio → **Open** → carpeta `LLMiaAndroid` → esperar **Sync**.
+2. Android Studio → **Open** → carpeta `android/` de este repositorio → esperar **Sync**.
 3. Ejecutar en un **Android físico** con Wi-Fi y datos móviles (Android 10+).
 4. En **Ajustes**: escribir la clave de `Carrito_CAM` → **Conectar al robot** → aceptar el diálogo de Android.
 5. Probar con ruedas al aire: flechas, STOP, «avanza un poco», «para».

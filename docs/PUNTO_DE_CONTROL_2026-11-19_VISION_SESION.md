@@ -22,7 +22,14 @@ Fecha: 19 de noviembre de 2026, Lima. Incremento Android 0.3.0, sobre la rama `f
 
 ## Pruebas
 
-Backend: 35 pruebas locales pasaron, incluyendo cuenta de compañero, 401/403, aislamiento entre propietarios, robot incorrecto, cuerpo inválido, pregunta transmitida con JPEG y compatibilidad antigua y lectura de registros Firestore sin pregunta. Pruebas nuevas JVM para consultas visuales y prioridad de STOP incluidas; compilación, lint y ejecución completa se comprueban en GitHub Actions. No se usa Firebase Test Lab ni dispositivos de nube.
+Backend: 35 pruebas locales pasaron, incluyendo cuenta de compañero, 401/403, aislamiento entre propietarios, robot incorrecto, cuerpo inválido, pregunta transmitida con JPEG y compatibilidad antigua y lectura de registros Firestore sin pregunta. Las 38 pruebas JVM de Android pasaron localmente, incluidas consultas visuales y prioridad de STOP. GitHub Actions ejecutó con éxito `testDebugUnitTest assembleDebug lintDebug`, repitió con el modo de red debug habilitado y comprobó que release fuerza ese modo a `false`. No se usa Firebase Test Lab ni dispositivos de nube.
+
+Código validado: `59d9f49d9f9bd91f31e5b53d422958287c7164de`.
+
+- [Android: compilación, APK, pruebas, lint y aislamiento de red](https://github.com/JuliusCordova/roboticaLLMIA/actions/runs/44662947720): SUCCESS.
+- [Backend](https://github.com/JuliusCordova/roboticaLLMIA/actions/runs/44662947647): SUCCESS.
+- Otra ejecución Android falló al resolver dependencias Maven antes de compilar. Se reintentó; la ejecución exitosa anterior valida el mismo código. No se cambian versiones ni repositorios para ocultar ese fallo.
+- La compilación completa local también quedó bloqueada al resolver el plugin Android; la evidencia de APK/lint corresponde a GitHub Actions. No se entrega un APK local configurado con Firebase.
 
 ## Orden de instalación y aceptación pendiente
 

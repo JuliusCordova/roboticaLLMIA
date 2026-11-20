@@ -46,3 +46,8 @@ El [panel React](frontend/README.md) y el [backend local con simulador](backend/
 4. Cambia el objeto frente a la cámara y vuelve a cargar `/capture`. La prueba se cumple si la nueva imagen muestra el cambio.
 
 **Estado del avance.** El montaje está documentado con vistas superior e inferior. El operador confirmó la imagen real desde `/capture` conectado a `Carrito_CAM`. Gemini respondió a una captura del simulador en Cloud Run, pero la integración ESP32-CAM → Cloud Run todavía está pendiente. La rama de integración agrega Wi-Fi AP+STA opcional; ver [guía](firmware/LLMia/WIFI_SETUP.md).
+
+## App Android de control y puente
+
+El código de la app se encuentra en [android/](android/README.md), versión 0.2.1. Usa Wi-Fi local para conducir y datos móviles para Cloud Run, según ADR-02. Incluye correcciones de órdenes ambiguas, STOP y ciclo de vida, más pruebas automatizadas. Ver [validación y pruebas físicas pendientes](docs/android-v021-validation.md). La incorporación del código no acredita todavía la conexión de extremo a extremo con un Android físico.
+

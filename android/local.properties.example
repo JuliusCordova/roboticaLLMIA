@@ -1,0 +1,11 @@
+# Copia como local.properties; Android Studio añade sdk.dir en tu equipo.
+# Usa la configuración de una app ANDROID registrada para pe.edu.upn.llmia.
+llmia.firebase.apiKey=
+llmia.firebase.appId=
+llmia.firebase.projectId=proyectopersonal-480420
+# Cliente OAuth Web del mismo proyecto, no el appId de llmia-web.
+llmia.firebase.webClientId=
+
+
+# Solo para debug: permitir Internet predeterminado del emulador hacia Cloud Run.
+llmia.debug.allowDefaultCloudNetwork=false

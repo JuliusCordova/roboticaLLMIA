@@ -1,5 +1,7 @@
 # Punto de control: contexto y búsqueda solo con cámara (Android 0.4)
 
+> **En pausa — fase posterior (20-11-2026):** Julius decidió presentar la demo 0.3 reportada funcionando, preservada en [demo/v0.3](https://github.com/JuliusCordova/roboticaLLMIA/tree/demo/v0.3). Este código 0.4 conserva las mejoras para otra fase; su aceptación física y su despliegue efectivo no quedaron confirmados. Ver [cierre de demo](https://github.com/JuliusCordova/roboticaLLMIA/blob/main/docs/PUNTO_DE_CONTROL_2026-11-20_CIERRE_DEMO.md).
+
 Fecha de referencia: 19-11-2026, Lima. Rama `fix/android-v021-control`, PR #5. No se modifica el firmware.
 
 ## Base reportada por Julius

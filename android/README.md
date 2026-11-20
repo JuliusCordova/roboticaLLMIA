@@ -1,5 +1,7 @@
 # LLMia · app Android (v0.4.0)
 
+> **En pausa — fase posterior (20-11-2026):** Julius decidió presentar la demo 0.3 reportada funcionando, preservada en [demo/v0.3](https://github.com/JuliusCordova/roboticaLLMIA/tree/demo/v0.3). Este código 0.4 conserva las mejoras para otra fase; su aceptación física y su despliegue efectivo no quedaron confirmados. Ver [cierre de demo](https://github.com/JuliusCordova/roboticaLLMIA/blob/main/docs/PUNTO_DE_CONTROL_2026-11-20_CIERRE_DEMO.md).
+
 App Kotlin + Jetpack Compose que hace dos cosas con la ESP32-CAM **sin reprogramar su firmware**:
 
 1. **Maneja el robot** por la red local `Carrito_CAM`, con flechas, texto o voz.

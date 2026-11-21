@@ -16,6 +16,12 @@ El [panel React](frontend/README.md) y el [backend local con simulador](backend/
 
 ## Montaje del prototipo
 
+### Carrocería de cartulina — 21 de noviembre de 2026
+
+![LLMia con la carrocería negra tipo Rover científico](docs/evidencias/llmia-carroceria-2026-11-21-superior-frontal.jpg)
+
+Cubierta negra instalada sobre el chasis de madera, con cámara y sensor frontal descubiertos. Los logos y las franjas amarillas aún están pendientes de colocación en estas fotos. Ver [las dos vistas y el punto de control del montaje](docs/carroceria-rover-2026-11-21.md).
+
 ![Prototipo LLMia con la ESP32-CAM montada en el chasis, la placa de control de motores y el sensor ultrasónico frontal](docs/evidencias/llmia-montaje-2026-11-10.jpg)
 
 *Evidencia del montaje físico del 10 de noviembre de 2026.*

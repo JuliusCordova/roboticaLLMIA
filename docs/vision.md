@@ -28,3 +28,11 @@ El backend envía el JPEG de la observación a Vertex AI como datos de la solici
 
 - [Comprensión de imágenes](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/capabilities/image-understanding)
 - [Gemini 3.5 Flash](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/guides/gemini-3-5-flash)
+
+
+
+## Preguntas dirigidas (v0.3)
+
+Android envía una pregunta por texto o voz junto con la solicitud de foto nueva. El adaptador recibe esa pregunta, persistida en la observación, y el JPEG de su mismo ID. Las instrucciones de sistema describen la cámara como punto de vista del entorno, no como una foto que necesariamente contiene un robot. «Busca un perro» pide identificarlo en el encuadre actual y describirlo; no mueve el carrito ni explora otros encuadres. Si no se ve, debe responder que no aparece y expresar incertidumbre cuando corresponda.
+
+Añadir una prueba de presencia y otra de ausencia del mismo objeto, repitiendo por voz. Registrar pregunta, ID, imagen, descripción y tiempo. Las pruebas automatizadas verifican transmisión y asociación, no garantizan la exactitud del modelo sobre escenas reales. El simulador sigue describiendo colores y no reconoce objetos.

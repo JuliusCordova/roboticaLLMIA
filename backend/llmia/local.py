@@ -2,7 +2,7 @@
 from dataclasses import replace
 from threading import Lock
 
-from .core import RobotState
+from .core import DEFAULT_QUESTION, RobotState, VisualFinding
 
 
 class MemoryObservations:
@@ -40,7 +40,7 @@ class MemoryImages:
 class SimulatedDescriber:
     """Distinguishes the solid-color test scenes; does not recognize objects."""
 
-    def describe(self, jpeg: bytes) -> str:
+    def describe(self, jpeg: bytes, question: str = DEFAULT_QUESTION, history=()) -> str:
         from io import BytesIO
         from PIL import Image
 
@@ -52,3 +52,7 @@ class SimulatedDescriber:
         if blue > max(red, green) + 50:
             return "[Simulación] La imagen de prueba tiene un fondo azul."
         return "[Simulación] Se recibió una imagen sin un color de prueba dominante."
+
+
+    def locate(self, jpeg: bytes, target: str, question: str, history=()) -> VisualFinding:
+        return VisualFinding("[Simulación] No puedo reconocer el objetivo en este modo.", "UNCERTAIN")

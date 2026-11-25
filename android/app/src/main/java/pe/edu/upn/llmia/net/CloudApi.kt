@@ -59,6 +59,16 @@ class CloudApi(
     }
     private fun net() = network() ?: throw CloudOffline()
 
+    suspend fun presentationIntent(operatorToken: String, text: String): Boolean = withContext(Dispatchers.IO) {
+        require(text.trim().length in 1..500)
+        val (code, body) = Http.exchange(net(), "$origin/api/v1/presentation/intent", "POST",
+            "Bearer $operatorToken", JSONObject().put("text", text).toString().toByteArray(Charsets.UTF_8),
+            "application/json", maxResponse = 1024, readMs = 18_000)
+        if (code != 200) throw CloudHttpException(code, "presentation_intent")
+        val result = JSONObject(body.toString(Charsets.UTF_8))
+        result.length() == 1 && result.optString("intent") == "PRESENT_TEAM"
+    }
+
     suspend fun teamPresentation(operatorToken: String): TeamPresentation = withContext(Dispatchers.IO) {
         val bearer = "Bearer $operatorToken"
         val (metadataCode, metadata) = Http.exchange(net(), "$origin/api/v1/presentation/team",

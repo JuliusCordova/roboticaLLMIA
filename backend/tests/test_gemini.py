@@ -12,6 +12,36 @@ def result(*parts, reason="STOP"):
 
 
 class GeminiTests(TestCase):
+    def test_presentation_intent_contract(self):
+        for value, expected in [
+            ('{"intent":"PRESENT_TEAM"}', "PRESENT_TEAM"),
+            ('{"intent":"UNKNOWN"}', "UNKNOWN"),
+            ('{"intent":"MOVE"}', "UNKNOWN"),
+            ('{"intent":"PRESENT_TEAM","move":"forward"}', "UNKNOWN"),
+            ('{"intent":true}', "UNKNOWN"),
+            ('[]', "UNKNOWN"),
+        ]:
+            with self.subTest(value=value):
+                generate = Mock(return_value=result({"text": value}))
+                self.assertEqual(VertexGeminiDescriber(generate).presentation_intent(
+                    "Quiero conocer a tus creadores"), expected)
+                body = generate.call_args.args[0]
+                self.assertNotIn("tools", body)
+                self.assertEqual(body["generationConfig"]["responseSchema"]["properties"]["intent"]["enum"],
+                                 ["PRESENT_TEAM", "UNKNOWN"])
+                self.assertEqual(body["contents"][0]["parts"],
+                                 [{"text": "Quiero conocer a tus creadores"}])
+
+    def test_presentation_intent_blocked_or_truncated(self):
+        for response in ({}, result({"text": '{"intent":"PRESENT_TEAM"}'}, reason="MAX_TOKENS")):
+            self.assertEqual(VertexGeminiDescriber(lambda _: response).presentation_intent(
+                "Presenta a tus creadores"), "UNKNOWN")
+
+    def test_presentation_intent_invalid_json(self):
+        with self.assertRaises(ValueError):
+            VertexGeminiDescriber(lambda _: result({"text": "invalid"})).presentation_intent(
+                "Presenta a tus creadores")
+
     def test_sends_exact_jpeg_and_extracts_only_visible_answer(self):
         generate = Mock(return_value=result(
             {"text": "razonamiento privado", "thought": True},

@@ -113,6 +113,18 @@ def http_app(
         if requested != robot_id:
             raise HTTPException(404, "robot_not_found")
 
+    @app.post("/api/v1/presentation/intent")
+    def presentation_intent(body: dict, _owner: str = Depends(operator)):
+        text = body.get("text")
+        if set(body) != {"text"} or not isinstance(text, str) or not 1 <= len(text.strip()) <= 500:
+            raise HTTPException(422, "invalid_intent_text")
+        if not isinstance(use_case.describer, VertexGeminiDescriber):
+            return {"intent": "UNKNOWN"}
+        try:
+            return {"intent": use_case.describer.presentation_intent(text)}
+        except Exception:
+            return {"intent": "UNKNOWN"}
+
     @app.get("/api/v1/presentation/team")
     def presentation_team(_owner: str = Depends(operator)):
         from .presentation import team_presentation

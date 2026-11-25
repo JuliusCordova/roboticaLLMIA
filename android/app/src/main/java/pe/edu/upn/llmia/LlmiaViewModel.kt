@@ -89,6 +89,8 @@ data class UiState(
     val obstacleAt: Long = 0L,
     val analyzing: Boolean = false,
     val searching: Boolean = false,
+    val presenting: Boolean = false,
+    val teamPhoto: ImageBitmap? = null,
 )
 
 class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
@@ -107,6 +109,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     private var bridgeJob: Job? = null
     private var sensorsJob: Job? = null
     private var visualJob: Job? = null
+    private var presentationJob: Job? = null
     private val conversation = ConversationContext()
     private val bridgeTransition = Mutex()
     private var foreground = false
@@ -187,6 +190,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun signOut() {
+        presentationJob?.cancel()
         resetConversation()
         stopBridge()
         auth.signOut()
@@ -226,6 +230,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     // ------------------------------------------------------------------ movimiento
     /** Flechas: se mueve mientras el dedo siga apoyado. */
     fun holdStart(direction: Direction) {
+        if (_ui.value.presenting) return
         if (_ui.value.searching) { reply("La búsqueda usa solo la cámara. Pulsa STOP para cancelarla."); return }
         if (!foreground || _ui.value.robot != LinkState.ON) { say(Speaker.SYSTEM, "Conecta el robot y mantén la app visible.", alert = true); return }
         holding = true
@@ -240,7 +245,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         motionJob = viewModelScope.launch {
             withContext(NonCancellable) { previous?.cancelAndJoin() }
             coroutineContext.ensureActive()
-            if (!foreground || _ui.value.searching) return@launch
+            if (!foreground || _ui.value.searching || _ui.value.presenting) return@launch
             block()
         }
     }
@@ -253,6 +258,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun emergencyStop() {
+        presentationJob?.cancel()
         cancelVisual()
         stopWheels()
     }
@@ -329,13 +335,13 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------ servo
     fun setServo(angle: Int) {
-        if (!foreground || _ui.value.moving != null || _ui.value.searching) return
+        if (!foreground || _ui.value.moving != null || _ui.value.searching || _ui.value.presenting) return
         _ui.update { it.copy(servoAngle = angle, sweeping = false) }
         viewModelScope.launch { if (!_ui.value.searching) runCatching { robot.servo(angle) } }
     }
 
     fun toggleSweep(want: Boolean? = null) = viewModelScope.launch {
-        if (!foreground || _ui.value.moving != null || _ui.value.searching) return@launch
+        if (!foreground || _ui.value.moving != null || _ui.value.searching || _ui.value.presenting) return@launch
         if (want != null && want == _ui.value.sweeping) return@launch
         runCatching { robot.toggleSweep() }
             .onSuccess { on -> _ui.update { it.copy(sweeping = on) } }
@@ -348,12 +354,14 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         if (clean.isEmpty() || !foreground) return
         say(Speaker.USER, clean, source = source)
         val parsed = CommandParser.parse(clean)
+        if (_ui.value.presenting && parsed != Command.Stop) return
         if (_ui.value.searching && parsed != Command.Stop && parsed != Command.NewConversation) {
             reply("Estoy buscando con la cámara. Pulsa STOP para cancelar antes de otra orden.")
             return
         }
         when (val cmd = parsed) {
             Command.Stop -> { emergencyStop(); reply("Solicito detenerme.") }
+            Command.PresentTeam -> presentTeam()
             Command.Describe -> describe(clean)
             is Command.Search -> startVisual("Busca ${cmd.target} y descríbelo", cmd.target)
             Command.NewConversation -> { resetConversation(); reply("Empezamos una nueva conversación.") }
@@ -372,6 +380,39 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun presentTeam() {
+        val s = _ui.value
+        if (!foreground || s.presenting || s.analyzing) return
+        if (s.operator == null || s.robot != LinkState.ON) {
+            reply("Conecta el robot e inicia sesión para presentar al equipo.")
+            return
+        }
+        _ui.update { it.copy(presenting = true) }
+        stopWheels()
+        presentationJob = viewModelScope.launch {
+            try {
+                motionJob?.join()
+                check(robot.stop()) { "STOP sin confirmación" }
+                val team = cloud.teamPresentation(auth.idToken())
+                val photo = withContext(Dispatchers.Default) { decode(team.jpeg) }
+                    ?: error("Fotografía inválida")
+                _ui.update { it.copy(teamPhoto = photo) }
+                val narration = "Les presento a mis creadores: " + team.members.joinToString(". ") + "."
+                say(Speaker.LLMIA, narration)
+                check(voice.narrate(narration)) { "Narración no completada" }
+                delay(3_000)
+            } catch (e: TimeoutCancellationException) {
+                say(Speaker.SYSTEM, "Tiempo de presentación agotado.", alert = true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                say(Speaker.SYSTEM, "Presentación interrumpida: ${e.short()}", alert = true)
+            } finally {
+                _ui.update { it.copy(presenting = false, teamPhoto = null) }
+            }
+        }
+    }
+
     private fun lookText(angle: Int) = when {
         angle < 45 -> "Miro a la izquierda."
         angle > 135 -> "Miro a la derecha."
@@ -379,7 +420,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun toggleListening() {
-        if (!foreground) return
+        if (!foreground || _ui.value.presenting) return
         if (_ui.value.listening) { voice.cancelListening(); _ui.update { it.copy(listening = false, level = 0f) }; return }
         _ui.update { it.copy(listening = true, partial = "") }
         voice.listen(
@@ -416,7 +457,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     private fun startVisual(question: String, target: String? = null) {
         val s = _ui.value
         when {
-            !foreground -> return
+            !foreground || s.presenting -> return
             s.robot != LinkState.ON -> { reply("Conecta el robot para tomar la foto."); return }
             !s.bridgeOn -> { reply("Activa el puente en Ajustes para enviar la foto a Gemini."); return }
             s.operator == null -> { reply("Inicia sesión de operador en Ajustes."); return }
@@ -619,7 +660,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         if (pendingDescribe != id && result.terminal && delivered.add(id)) {
             val text = result.description ?: "No se pudo describir la escena (${result.error ?: "error"})."
             say(Speaker.LLMIA, text, source = Source.PANEL, image = framesById.get(id), alert = result.status != "LISTA")
-            if (result.status == "LISTA") voice.speak(text)
+            if (result.status == "LISTA" && !_ui.value.presenting) voice.speak(text)
         }
     }
 
@@ -650,6 +691,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         robot.invalidateMotion()
         motionJob?.cancel()
         visualJob?.cancel()
+        presentationJob?.cancel()
         bridgeJob?.cancel()
         sensorsJob?.cancel()
         // Mantener la red hasta terminar la limpieza de la maniobra y pedir STOP.

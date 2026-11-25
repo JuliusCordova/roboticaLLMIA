@@ -19,11 +19,11 @@ android {
     namespace = "pe.edu.upn.llmia"
     compileSdk = 35
     defaultConfig {
-        applicationId = "pe.edu.upn.llmia"
+        applicationId = "pe.edu.upn.llmia.v2"
         minSdk = 29
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.4.0"
+        versionCode = 6
+        versionName = "0.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("String", "CLOUD_ORIGIN",

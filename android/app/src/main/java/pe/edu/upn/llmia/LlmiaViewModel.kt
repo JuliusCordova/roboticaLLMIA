@@ -110,6 +110,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     private var sensorsJob: Job? = null
     private var visualJob: Job? = null
     private var presentationJob: Job? = null
+    private var intentJob: Job? = null
     private val conversation = ConversationContext()
     private val bridgeTransition = Mutex()
     private var foreground = false
@@ -190,6 +191,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun signOut() {
+        intentJob?.cancel()
         presentationJob?.cancel()
         resetConversation()
         stopBridge()
@@ -239,6 +241,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Espera a que la maniobra anterior termine (y envíe su STOP) antes de empezar otra. */
     private fun startMotion(block: suspend () -> Unit) {
+        intentJob?.cancel()
         robot.invalidateMotion()
         val previous = motionJob
         previous?.cancel()
@@ -258,6 +261,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun emergencyStop() {
+        intentJob?.cancel()
         presentationJob?.cancel()
         cancelVisual()
         stopWheels()
@@ -353,6 +357,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         val clean = text.trim()
         if (clean.isEmpty() || !foreground) return
         say(Speaker.USER, clean, source = source)
+        intentJob?.cancel()
         val parsed = CommandParser.parse(clean)
         if (_ui.value.presenting && parsed != Command.Stop) return
         if (_ui.value.searching && parsed != Command.Stop && parsed != Command.NewConversation) {
@@ -376,7 +381,30 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
                 holding = false
                 startMotion { drive(cmd.direction, cmd.millis) }
             }
-            is Command.Unknown -> reply("No entendí la orden. Prueba «avanza un poco», «gira a la izquierda», «para» o «¿qué ves?».")
+            is Command.Unknown -> interpretPresentation(clean)
+        }
+    }
+
+    private fun interpretPresentation(text: String) {
+        val s = _ui.value
+        if (!foreground || s.operator == null || s.moving != null || s.searching ||
+            s.analyzing || s.presenting || text.length !in 1..500) {
+            reply("No entendí la orden.")
+            return
+        }
+        intentJob = viewModelScope.launch {
+            try {
+                val present = cloud.presentationIntent(auth.idToken(), text)
+                ensureActive()
+                val current = _ui.value
+                if (!foreground || current.operator != s.operator || current.moving != null ||
+                    current.searching || current.analyzing || current.presenting) return@launch
+                if (present) presentTeam() else reply("No entendí la orden.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                reply("No pude interpretar la solicitud.")
+            }
         }
     }
 
@@ -691,6 +719,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         robot.invalidateMotion()
         motionJob?.cancel()
         visualJob?.cancel()
+        intentJob?.cancel()
         presentationJob?.cancel()
         bridgeJob?.cancel()
         sensorsJob?.cancel()

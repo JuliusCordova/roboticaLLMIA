@@ -30,6 +30,8 @@ data class Observation(
     }
 }
 
+data class TeamPresentation(val members: List<String>, val jpeg: ByteArray)
+
 sealed interface Poll {
     data object NoWork : Poll
     data class Job(val id: String, val expiresAt: Instant) : Poll
@@ -56,6 +58,27 @@ class CloudApi(
         require(robotId == "llmia-01") { "Robot no aprobado para esta demo" }
     }
     private fun net() = network() ?: throw CloudOffline()
+
+    suspend fun teamPresentation(operatorToken: String): TeamPresentation = withContext(Dispatchers.IO) {
+        val bearer = "Bearer $operatorToken"
+        val (metadataCode, metadata) = Http.exchange(net(), "$origin/api/v1/presentation/team",
+            auth = bearer, maxResponse = 16 * 1024, readMs = 10_000)
+        if (metadataCode != 200) throw CloudHttpException(metadataCode, "team_metadata")
+        val json = JSONObject(metadata.toString(Charsets.UTF_8))
+        require(json.getString("image_url") == "/api/v1/presentation/team/image")
+        val array = json.getJSONArray("members")
+        require(array.length() in 1..20)
+        val names = List(array.length()) { index ->
+            (array.get(index) as? String ?: error("Nombre inválido")).trim().also {
+                require(it.length in 1..100 && it.none { c -> c.isISOControl() })
+            }
+        }
+        val (imageCode, jpeg) = Http.exchange(net(), "$origin/api/v1/presentation/team/image",
+            auth = bearer, maxResponse = 4 * 1024 * 1024, readMs = 15_000)
+        if (imageCode != 200) throw CloudHttpException(imageCode, "team_image")
+        require(jpeg.size >= 3 && jpeg[0] == 0xff.toByte() && jpeg[1] == 0xd8.toByte())
+        TeamPresentation(names, jpeg)
+    }
 
     suspend fun health(): String = withContext(Dispatchers.IO) {
         val (code, body) = Http.exchange(net(), "$origin/health", connectMs = 8_000, readMs = 10_000)

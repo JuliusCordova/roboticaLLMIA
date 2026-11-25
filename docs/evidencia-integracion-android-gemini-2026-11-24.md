@@ -12,6 +12,17 @@ El video muestra la aplicación en un teléfono físico, la vista de cámara, co
 
 El video publicado es una copia comprimida de IMG_3018.mp4, con la duración completa y audio, en H.264/AAC para facilitar la consulta. Las fotos se conservan sin edición.
 
+## Videos adicionales — 25 de noviembre de 2026
+
+Julius aporta dos grabaciones adicionales como evidencia de funcionamiento. Se publican copias comprimidas H.264/AAC con audio y duración completa, sin recortes; los nombres permiten relacionarlas con los originales.
+
+| Original | Duración | Evidencia publicada |
+| --- | --- | --- |
+| IMG_3027.mp4 | 51,67 s | [Ver o descargar video](evidencias/2026-11-25/IMG_3027_demo.mp4) |
+| IMG_3028.mp4 | 99,30 s | [Ver o descargar video](evidencias/2026-11-25/IMG_3028_demo.mp4) |
+
+Estas grabaciones se agregan al registro de la demostración. No se asignan resultados cuantitativos de aceptación ni se dan por cerrados ensayos de seguridad a partir de esta incorporación.
+
 ## Galería
 
 ### IMG_3019
@@ -36,7 +47,7 @@ El video publicado es una copia comprimida de IMG_3018.mp4, con la duración com
 
 ## Punto de control
 
-- Evidencia física incorporada: cinco fotografías y un video de la demostración.
+- Evidencia física incorporada: cinco fotografías y tres videos de la demostración (incluidos los dos añadidos el 25 de noviembre).
 - Integración Android y Gemini/Vertex AI: funcionamiento reportado por el operador, con interacción y descripción visibles en el video.
 - Cloud Run: el operador compartió la salida de actualización de la lista de acceso, revisión `llmia-demo-00006-qpv`, con 100 % de tráfico. No se verificó aquí el digest de imagen desplegado.
 - Pendiente de registrar por separado: ensayos repetidos de bloqueo ante obstáculos, parada por pérdida de conexión, precisión en cinco escenas y reconocimiento de órdenes.

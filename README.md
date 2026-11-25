@@ -20,6 +20,10 @@ Consultar el [punto de control de cierre](docs/PUNTO_DE_CONTROL_2026-11-20_CIERR
 
 El [panel React](frontend/README.md) y el [backend local con simulador](backend/README.md) permiten probar el flujo de captura y descripción. El [runbook de Cloud Run](infra/README.md) prepara el despliegue en el proyecto compartido `proyectopersonal-480420`, con recursos de LLMia separados y acceso por Firebase Auth. El despliegue en Cloud Run y una inferencia con Gemini sobre una imagen simulada ya fueron verificados; ver [bitácora de integración](docs/progreso-integracion-2026-11-10.md). La conexión directa de la ESP32-CAM a Internet sigue pendiente; el flujo real mediante puente Android fue reportado funcionando posteriormente (ver el punto de control de cierre). El alcance y los criterios de aceptación están en la [especificación PA-SDD](specs/SPEC.md).
 
+## Clasificación de componentes para el informe final
+
+Ver la [clasificación funcional de LLMia y las tres fotografías de la explicación del profesor](docs/clasificacion-componentes-informe-final.md): adquisición, control, potencia, actuación y comunicación, con los subsistemas de Android, IA, autenticación, alimentación y estructura.
+
 ## Montaje del prototipo
 
 ### Carrocería de cartulina — 21 de noviembre de 2026

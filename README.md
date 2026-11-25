@@ -2,6 +2,12 @@
 
 Prototipo universitario de robótica móvil de la UPN. El firmware base de la ESP32-CAM sirve una interfaz web local para ver la cámara, controlar el robot y consultar la distancia frontal. El proyecto contempla integrar Gemini para describir el entorno a partir de imágenes capturadas por el robot.
 
+## Demostración física — 24 de noviembre de 2026
+
+![LLMia con carrocería decorada, Android y equipo](docs/evidencias/2026-11-24/IMG_3019.jpeg)
+
+Se incorporan **cinco fotos originales y un video completo comprimido** de la demostración de LLMia con Android y la integración con Gemini en Vertex AI reportada por el operador. Ver [galería, video y punto de control](docs/evidencia-integracion-android-gemini-2026-11-24.md). Las mediciones y pruebas repetidas de aceptación siguen pendientes de registro.
+
 ## Estado de la demo — 20 de noviembre de 2026
 
 Julius decidió conservar la **demo 0.3 reportada funcionando** y dejar las mejoras para una fase posterior. Su código queda preservado en [demo/v0.3](https://github.com/JuliusCordova/roboticaLLMIA/tree/demo/v0.3).

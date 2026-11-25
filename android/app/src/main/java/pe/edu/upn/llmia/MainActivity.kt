@@ -1,6 +1,18 @@
 package pe.edu.upn.llmia
 
 import android.os.Bundle
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -21,7 +33,24 @@ class MainActivity : ComponentActivity() {
         setContent {
             LlmiaTheme {
                 val state by vm.ui.collectAsStateWithLifecycle()
-                LlmiaScreen(vm, state)
+                if (state.presenting) {
+                    BackHandler { vm.emergencyStop() }
+                    Box(Modifier.fillMaxSize().background(Color.Black)) {
+                        val photo = state.teamPhoto
+                        if (photo != null) {
+                            Image(photo, contentDescription = "Equipo LLMia",
+                                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                        } else {
+                            CircularProgressIndicator(Modifier.align(Alignment.Center))
+                        }
+                        Button(onClick = { vm.emergencyStop() },
+                            modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
+                            Text("STOP")
+                        }
+                    }
+                } else {
+                    LlmiaScreen(vm, state)
+                }
             }
         }
     }

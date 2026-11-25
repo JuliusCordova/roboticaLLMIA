@@ -1,0 +1,45 @@
+name: LLMia 2 QA
+on:
+  push:
+    branches: ['feature/v0.5-multimedia-presentation']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements-cloud.txt httpx
+      - run: python -m compileall -q llmia
+      - run: python -m unittest discover -s tests -v
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - run: gradle --no-daemon testDebugUnitTest lintDebug assembleDebug
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: llmia2-android-qa-reports
+          path: android/app/build/reports/
+          if-no-files-found: ignore

@@ -2,11 +2,14 @@ name: LLMia 2 QA
 on:
   push:
     branches: ['feature/v0.5-multimedia-presentation']
+  pull_request:
+    branches: ['fix/android-v021-control']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   backend:
+    if: github.event_name != 'pull_request' || github.head_ref == 'feature/v0.5-multimedia-presentation'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -21,6 +24,7 @@ jobs:
       - run: python -m compileall -q llmia
       - run: python -m unittest discover -s tests -v
   android:
+    if: github.event_name != 'pull_request' || github.head_ref == 'feature/v0.5-multimedia-presentation'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     defaults:

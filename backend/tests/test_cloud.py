@@ -54,8 +54,11 @@ class CloudConfigurationTests(TestCase):
             self.skipTest("Install requirements-cloud.txt to exercise the Google SDK adapters.")
         with patch.dict("os.environ", APPROVED_CLOUD, clear=True):
             with patch("llmia.cloud.cloud_adapters", return_value=(MemoryObservations(), MemoryImages())) as cloud:
-                with patch("llmia.http.firebase_verifier", return_value=lambda _: ("operator", True)) as firebase:
-                    app = create_app()
+                with patch("google.cloud.storage.Client") as storage_client:
+                    with patch("llmia.http.firebase_verifier", return_value=lambda _: ("operator", True)) as firebase:
+                        app = create_app()
+                    storage_client.assert_called_once_with(project="proyectopersonal-480420")
+                    storage_client.return_value.bucket.assert_called_once_with("proyectopersonal-480420-llmia-images")
             cloud.assert_called_once_with("proyectopersonal-480420", "llmia-demo",
                                           "proyectopersonal-480420-llmia-images")
             firebase.assert_called_once_with("proyectopersonal-480420", frozenset({"operator"}))

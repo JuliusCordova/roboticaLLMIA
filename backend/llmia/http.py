@@ -20,7 +20,7 @@ from .gemini import LOCATION as GEMINI_LOCATION, MODEL as GEMINI_MODEL, VertexGe
 from .local import MemoryImages, MemoryObservations, SimulatedDescriber
 
 CLOUD_PROJECT = "proyectopersonal-480420"
-CLOUD_DATABASE = "llmia-demo"
+CLOUD_DATABASE = "llmia-v2"
 CLOUD_IMAGE_BUCKET = f"{CLOUD_PROJECT}-llmia-images"
 
 MAX_JPEG = 512 * 1024
@@ -291,7 +291,7 @@ def create_app():
         if (mode != "firebase" or project != CLOUD_PROJECT or project != auth_project
                 or database != CLOUD_DATABASE or bucket != CLOUD_IMAGE_BUCKET
                 or environ.get("FIRESTORE_EMULATOR_HOST") or environ.get("STORAGE_EMULATOR_HOST")):
-            raise RuntimeError("Cloud Run debe usar el proyecto aprobado, la base llmia-demo y el bucket exclusivo de LLMia.")
+            raise RuntimeError("Cloud Run debe usar el proyecto aprobado, la base llmia-v2 y el bucket exclusivo de LLMia.")
         from .cloud import cloud_adapters
 
         repository, images = cloud_adapters(project, database, bucket)

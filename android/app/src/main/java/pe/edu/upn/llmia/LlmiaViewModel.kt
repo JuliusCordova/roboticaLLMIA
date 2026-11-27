@@ -110,6 +110,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     private var sensorsJob: Job? = null
     private var visualJob: Job? = null
     private var presentationJob: Job? = null
+    private var bridgeCaptureActive = false
     private var intentJob: Job? = null
     private val conversation = ConversationContext()
     private val bridgeTransition = Mutex()
@@ -410,7 +411,11 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun presentTeam() {
         val s = _ui.value
-        if (!foreground || s.presenting || s.analyzing) return
+        if (!foreground || s.presenting || s.analyzing || s.searching) return
+        if (bridgeCaptureActive) {
+            reply("Espera a que termine la captura antes de presentar al equipo.")
+            return
+        }
         if (s.operator == null || s.robot != LinkState.ON) {
             reply("Conecta el robot e inicia sesión para presentar al equipo.")
             return
@@ -633,10 +638,19 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
                 bridgeJob = viewModelScope.launch {
                     try {
                         while (isActive) {
+                            if (_ui.value.presenting) {
+                                delay(400)
+                                continue
+                            }
                             when (val p = cloud.poll(auth.idToken())) {
                                 Poll.NoWork -> Unit
                                 is Poll.Job -> try {
-                                    handleJob(p.id, p.expiresAt)
+                                    while (_ui.value.presenting && p.expiresAt.isAfter(java.time.Instant.now())) delay(200)
+                                    if (p.expiresAt.isAfter(java.time.Instant.now())) {
+                                        bridgeCaptureActive = true
+                                        try { handleJob(p.id, p.expiresAt) }
+                                        finally { bridgeCaptureActive = false }
+                                    }
                                 } catch (e: CancellationException) { throw e }
                                   catch (e: Exception) { say(Speaker.SYSTEM, "No se pudo enviar la foto: ${e.short()}", alert = true) }
                                 Poll.Unauthorized -> {

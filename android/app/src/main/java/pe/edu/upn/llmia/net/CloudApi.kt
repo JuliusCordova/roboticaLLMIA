@@ -54,7 +54,7 @@ class CloudApi(
 ) {
     private val idPattern = Regex("^[a-f0-9]{32}$")
     init {
-        require(origin == "https://llmia-demo-913797829604.us-central1.run.app") { "Origen Cloud Run no aprobado" }
+        require(origin == "https://llmia-v2-913797829604.us-central1.run.app") { "Origen Cloud Run no aprobado" }
         require(robotId == "llmia-01") { "Robot no aprobado para esta demo" }
     }
     private fun net() = network() ?: throw CloudOffline()

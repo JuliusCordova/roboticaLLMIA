@@ -89,6 +89,8 @@ data class UiState(
     val obstacleAt: Long = 0L,
     val analyzing: Boolean = false,
     val searching: Boolean = false,
+    val presenting: Boolean = false,
+    val teamPhoto: ImageBitmap? = null,
 )
 
 class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
@@ -107,6 +109,9 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     private var bridgeJob: Job? = null
     private var sensorsJob: Job? = null
     private var visualJob: Job? = null
+    private var presentationJob: Job? = null
+    private var bridgeCaptureActive = false
+    private var intentJob: Job? = null
     private val conversation = ConversationContext()
     private val bridgeTransition = Mutex()
     private var foreground = false
@@ -187,6 +192,8 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun signOut() {
+        intentJob?.cancel()
+        presentationJob?.cancel()
         resetConversation()
         stopBridge()
         auth.signOut()
@@ -226,6 +233,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     // ------------------------------------------------------------------ movimiento
     /** Flechas: se mueve mientras el dedo siga apoyado. */
     fun holdStart(direction: Direction) {
+        if (_ui.value.presenting) return
         if (_ui.value.searching) { reply("La búsqueda usa solo la cámara. Pulsa STOP para cancelarla."); return }
         if (!foreground || _ui.value.robot != LinkState.ON) { say(Speaker.SYSTEM, "Conecta el robot y mantén la app visible.", alert = true); return }
         holding = true
@@ -234,13 +242,14 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Espera a que la maniobra anterior termine (y envíe su STOP) antes de empezar otra. */
     private fun startMotion(block: suspend () -> Unit) {
+        intentJob?.cancel()
         robot.invalidateMotion()
         val previous = motionJob
         previous?.cancel()
         motionJob = viewModelScope.launch {
             withContext(NonCancellable) { previous?.cancelAndJoin() }
             coroutineContext.ensureActive()
-            if (!foreground || _ui.value.searching) return@launch
+            if (!foreground || _ui.value.searching || _ui.value.presenting) return@launch
             block()
         }
     }
@@ -253,6 +262,8 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun emergencyStop() {
+        intentJob?.cancel()
+        presentationJob?.cancel()
         cancelVisual()
         stopWheels()
     }
@@ -329,13 +340,13 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------------------------------ servo
     fun setServo(angle: Int) {
-        if (!foreground || _ui.value.moving != null || _ui.value.searching) return
+        if (!foreground || _ui.value.moving != null || _ui.value.searching || _ui.value.presenting) return
         _ui.update { it.copy(servoAngle = angle, sweeping = false) }
         viewModelScope.launch { if (!_ui.value.searching) runCatching { robot.servo(angle) } }
     }
 
     fun toggleSweep(want: Boolean? = null) = viewModelScope.launch {
-        if (!foreground || _ui.value.moving != null || _ui.value.searching) return@launch
+        if (!foreground || _ui.value.moving != null || _ui.value.searching || _ui.value.presenting) return@launch
         if (want != null && want == _ui.value.sweeping) return@launch
         runCatching { robot.toggleSweep() }
             .onSuccess { on -> _ui.update { it.copy(sweeping = on) } }
@@ -347,13 +358,16 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         val clean = text.trim()
         if (clean.isEmpty() || !foreground) return
         say(Speaker.USER, clean, source = source)
+        intentJob?.cancel()
         val parsed = CommandParser.parse(clean)
+        if (_ui.value.presenting && parsed != Command.Stop) return
         if (_ui.value.searching && parsed != Command.Stop && parsed != Command.NewConversation) {
             reply("Estoy buscando con la cámara. Pulsa STOP para cancelar antes de otra orden.")
             return
         }
         when (val cmd = parsed) {
             Command.Stop -> { emergencyStop(); reply("Solicito detenerme.") }
+            Command.PresentTeam -> presentTeam()
             Command.Describe -> describe(clean)
             is Command.Search -> startVisual("Busca ${cmd.target} y descríbelo", cmd.target)
             Command.NewConversation -> { resetConversation(); reply("Empezamos una nueva conversación.") }
@@ -368,7 +382,80 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
                 holding = false
                 startMotion { drive(cmd.direction, cmd.millis) }
             }
-            is Command.Unknown -> reply("No entendí la orden. Prueba «avanza un poco», «gira a la izquierda», «para» o «¿qué ves?».")
+            is Command.Unknown -> interpretPresentation(clean)
+        }
+    }
+
+    private fun interpretPresentation(text: String) {
+        val s = _ui.value
+        if (!foreground || s.operator == null || s.moving != null || s.searching ||
+            s.analyzing || s.presenting || text.length !in 1..500) {
+            reply("No entendí la orden.")
+            return
+        }
+        intentJob = viewModelScope.launch {
+            try {
+                val (intent, answer) = cloud.selfConversation(auth.idToken(), text)
+                ensureActive()
+                val current = _ui.value
+                if (!foreground || current.operator != s.operator || current.moving != null ||
+                    current.searching || current.analyzing || current.presenting) return@launch
+                when {
+                    intent == "PRESENT_TEAM" && answer == null -> presentTeam()
+                    intent in setOf("IDENTITY", "PURPOSE", "COMPONENTS", "ARCHITECTURE",
+                        "AI_TECHNOLOGY", "CAPABILITIES", "LIMITATIONS", "CAMERA", "MOTORS",
+                        "SERVO", "SENSOR", "POWER") && !answer.isNullOrBlank() -> reply(answer)
+                    else -> reply("No entendí la orden.")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                reply("No pude interpretar la solicitud.")
+            }
+        }
+    }
+
+    private fun presentTeam() {
+        val s = _ui.value
+        if (!foreground || s.presenting || s.analyzing || s.searching) return
+        if (bridgeCaptureActive) {
+            reply("Espera a que termine la captura antes de presentar al equipo.")
+            return
+        }
+        if (s.operator == null) {
+            reply("Inicia sesión para presentar al equipo.")
+            return
+        }
+        _ui.update { it.copy(presenting = true) }
+        if (s.robot == LinkState.ON || s.moving != null) {
+            stopWheels()
+        } else {
+            voice.cancelListening()
+            _ui.update { it.copy(listening = false, partial = "", level = 0f) }
+        }
+        presentationJob = viewModelScope.launch {
+            try {
+                motionJob?.join()
+                if (s.robot == LinkState.ON || _ui.value.robot == LinkState.ON) {
+                    check(robot.stop()) { "STOP sin confirmación" }
+                }
+                val team = cloud.teamPresentation(auth.idToken())
+                val photo = withContext(Dispatchers.Default) { decode(team.jpeg) }
+                    ?: error("Fotografía inválida")
+                _ui.update { it.copy(teamPhoto = photo) }
+                val narration = "Les presento a mis creadores: " + team.members.joinToString(". ") + "."
+                say(Speaker.LLMIA, narration)
+                check(voice.narrate(narration)) { "Narración no completada" }
+                delay(3_000)
+            } catch (e: TimeoutCancellationException) {
+                say(Speaker.SYSTEM, "Tiempo de presentación agotado.", alert = true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                say(Speaker.SYSTEM, "Presentación interrumpida: ${e.short()}", alert = true)
+            } finally {
+                _ui.update { it.copy(presenting = false, teamPhoto = null) }
+            }
         }
     }
 
@@ -379,7 +466,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun toggleListening() {
-        if (!foreground) return
+        if (!foreground || _ui.value.presenting) return
         if (_ui.value.listening) { voice.cancelListening(); _ui.update { it.copy(listening = false, level = 0f) }; return }
         _ui.update { it.copy(listening = true, partial = "") }
         voice.listen(
@@ -416,7 +503,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
     private fun startVisual(question: String, target: String? = null) {
         val s = _ui.value
         when {
-            !foreground -> return
+            !foreground || s.presenting -> return
             s.robot != LinkState.ON -> { reply("Conecta el robot para tomar la foto."); return }
             !s.bridgeOn -> { reply("Activa el puente en Ajustes para enviar la foto a Gemini."); return }
             s.operator == null -> { reply("Inicia sesión de operador en Ajustes."); return }
@@ -564,10 +651,19 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
                 bridgeJob = viewModelScope.launch {
                     try {
                         while (isActive) {
+                            if (_ui.value.presenting) {
+                                delay(400)
+                                continue
+                            }
                             when (val p = cloud.poll(auth.idToken())) {
                                 Poll.NoWork -> Unit
                                 is Poll.Job -> try {
-                                    handleJob(p.id, p.expiresAt)
+                                    while (_ui.value.presenting && p.expiresAt.isAfter(java.time.Instant.now())) delay(200)
+                                    if (p.expiresAt.isAfter(java.time.Instant.now())) {
+                                        bridgeCaptureActive = true
+                                        try { handleJob(p.id, p.expiresAt) }
+                                        finally { bridgeCaptureActive = false }
+                                    }
                                 } catch (e: CancellationException) { throw e }
                                   catch (e: Exception) { say(Speaker.SYSTEM, "No se pudo enviar la foto: ${e.short()}", alert = true) }
                                 Poll.Unauthorized -> {
@@ -619,7 +715,7 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         if (pendingDescribe != id && result.terminal && delivered.add(id)) {
             val text = result.description ?: "No se pudo describir la escena (${result.error ?: "error"})."
             say(Speaker.LLMIA, text, source = Source.PANEL, image = framesById.get(id), alert = result.status != "LISTA")
-            if (result.status == "LISTA") voice.speak(text)
+            if (result.status == "LISTA" && !_ui.value.presenting) voice.speak(text)
         }
     }
 
@@ -650,6 +746,8 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         robot.invalidateMotion()
         motionJob?.cancel()
         visualJob?.cancel()
+        intentJob?.cancel()
+        presentationJob?.cancel()
         bridgeJob?.cancel()
         sensorsJob?.cancel()
         // Mantener la red hasta terminar la limpieza de la maniobra y pedir STOP.

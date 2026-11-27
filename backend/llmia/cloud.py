@@ -61,7 +61,7 @@ class StorageImages:
         self.bucket = bucket
 
     def blob(self, observation):
-        return self.bucket.blob(f"observations/{observation}.jpg")
+        return self.bucket.blob(f"v2/observations/{observation}.jpg")
 
     def put(self, observation, jpeg):
         try:

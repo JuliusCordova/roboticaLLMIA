@@ -20,7 +20,7 @@ from .gemini import LOCATION as GEMINI_LOCATION, MODEL as GEMINI_MODEL, VertexGe
 from .local import MemoryImages, MemoryObservations, SimulatedDescriber
 
 CLOUD_PROJECT = "proyectopersonal-480420"
-CLOUD_DATABASE = "llmia-demo"
+CLOUD_DATABASE = "llmia-v2"
 CLOUD_IMAGE_BUCKET = f"{CLOUD_PROJECT}-llmia-images"
 
 MAX_JPEG = 512 * 1024
@@ -76,6 +76,7 @@ def http_app(
     verify_operator: Callable[[str], tuple[str, bool]],
     device_token: str,
     static_dir: Path | None = None,
+    presentation_bucket=None,
 ):
     app = FastAPI(title="LLMia FAST DEMO · Simulación local")
 
@@ -111,6 +112,53 @@ def http_app(
     def check_robot(requested: str):
         if requested != robot_id:
             raise HTTPException(404, "robot_not_found")
+
+    @app.post("/api/v1/presentation/intent")
+    def presentation_intent(body: dict, _owner: str = Depends(operator)):
+        text = body.get("text")
+        if set(body) != {"text"} or not isinstance(text, str) or not 1 <= len(text.strip()) <= 500:
+            raise HTTPException(422, "invalid_intent_text")
+        if not isinstance(use_case.describer, VertexGeminiDescriber):
+            return {"intent": "UNKNOWN"}
+        try:
+            return {"intent": use_case.describer.presentation_intent(text)}
+        except Exception:
+            return {"intent": "UNKNOWN"}
+
+    @app.post("/api/v1/conversation/self")
+    def self_conversation(body: dict, _owner: str = Depends(operator)):
+        from .self_knowledge import ANSWERS
+        text = body.get("text")
+        if set(body) != {"text"} or not isinstance(text, str) or not 1 <= len(text.strip()) <= 500:
+            raise HTTPException(422, "invalid_intent_text")
+        intent = "UNKNOWN"
+        if isinstance(use_case.describer, VertexGeminiDescriber):
+            try:
+                intent = use_case.describer.self_intent(text)
+            except Exception:
+                pass
+        return {"intent": intent, "answer": ANSWERS.get(intent)}
+
+    @app.get("/api/v1/presentation/team")
+    def presentation_team(_owner: str = Depends(operator)):
+        from .presentation import team_presentation
+        if presentation_bucket is None:
+            raise HTTPException(503, "presentation_unavailable")
+        try:
+            return JSONResponse(team_presentation(presentation_bucket), headers={"Cache-Control": "no-store"})
+        except Exception as exc:
+            raise HTTPException(503, "presentation_unavailable") from exc
+
+    @app.get("/api/v1/presentation/team/image")
+    def presentation_image(_owner: str = Depends(operator)):
+        from .presentation import team_photo
+        if presentation_bucket is None:
+            raise HTTPException(503, "presentation_unavailable")
+        try:
+            return Response(team_photo(presentation_bucket), media_type="image/jpeg",
+                            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+        except Exception as exc:
+            raise HTTPException(503, "presentation_unavailable") from exc
 
     @app.get("/health")
     def health():
@@ -249,6 +297,7 @@ def create_app():
         if not auth_project or not uids or environ.get("FIREBASE_AUTH_EMULATOR_HOST"):
             raise RuntimeError("Firebase requiere un proyecto real y UIDs permitidos; el emulador está deshabilitado.")
 
+    presentation_bucket = None
     if storage_mode == "gcp":
         project = environ.get("LLMIA_CLOUD_PROJECT", "").strip()
         database = environ.get("LLMIA_FIRESTORE_DATABASE", "").strip()
@@ -256,10 +305,12 @@ def create_app():
         if (mode != "firebase" or project != CLOUD_PROJECT or project != auth_project
                 or database != CLOUD_DATABASE or bucket != CLOUD_IMAGE_BUCKET
                 or environ.get("FIRESTORE_EMULATOR_HOST") or environ.get("STORAGE_EMULATOR_HOST")):
-            raise RuntimeError("Cloud Run debe usar el proyecto aprobado, la base llmia-demo y el bucket exclusivo de LLMia.")
+            raise RuntimeError("Cloud Run debe usar el proyecto aprobado, la base llmia-v2 y el bucket exclusivo de LLMia.")
         from .cloud import cloud_adapters
 
         repository, images = cloud_adapters(project, database, bucket)
+        from google.cloud import storage
+        presentation_bucket = storage.Client(project=project).bucket(bucket)
     else:
         repository, images = MemoryObservations(), MemoryImages()
 
@@ -267,7 +318,7 @@ def create_app():
     describer = vertex_describer(project, model, location) if vision_mode == "gemini" else SimulatedDescriber()
     use_case = DescribeScene(repository, images, describer, lambda: datetime.now(UTC))
     if mode == "firebase":
-        return http_app(use_case, robot, firebase_verifier(auth_project, uids), device_token, static_dir)
+        return http_app(use_case, robot, firebase_verifier(auth_project, uids), device_token, static_dir, presentation_bucket)
     operator_token = environ.get("LLMIA_OPERATOR_TOKEN", "")
     if not valid_local_token(operator_token) or operator_token == device_token:
         raise RuntimeError("Configura LLMIA_OPERATOR_TOKEN con un valor distinto al del dispositivo.")

@@ -14,6 +14,7 @@ sealed interface Command {
     data class Move(val direction: Direction, val millis: Long) : Command
     data object Stop : Command
     data object Describe : Command
+    data object PresentTeam : Command
     data class Search(val target: String) : Command
     data object NewConversation : Command
     data class VisualQuestion(val question: String) : Command
@@ -70,6 +71,17 @@ object CommandParser {
         if (has(STOP)) return Command.Stop
         // Las consultas visuales solo producen una foto y texto: nunca MOVE ni servo.
         val visual = text.replaceFirst(Regex("^llmia[,.]?\\s+"), "").removePrefix("por favor ")
+        if (visual.removeSuffix(" por favor") in setOf("muestra la foto del grupo", "muestrame la foto del grupo", "presenta a tus creadores", "presenta a tu equipo", "quienes son tus creadores")) return Command.PresentTeam
+        // Explicit self-knowledge questions must not request a camera capture.
+        if (visual.removeSuffix(" por favor") in setOf(
+            "quien eres", "como te llamas", "cual es tu nombre", "cual es tu proposito",
+            "para que fuiste creada", "para que fuiste construido", "para que fuiste construida",
+            "cuales son tus componentes", "que componentes tienes", "como funcionas",
+            "que inteligencia artificial utilizas", "que puedes hacer", "cuales son tus limitaciones",
+            "que funcion cumple tu esp32 cam", "como te desplazas", "para que sirve tu servomotor",
+            "como detectas obstaculos", "como te alimentas", "que es tu esp32 cam",
+            "describe tus componentes", "describe tu arquitectura", "cual es tu arquitectura"
+        )) return Command.Unknown(raw)
         val search = Regex("^(?:busca|buscar|encuentra|localiza) (.+?)(?: con la camara)?(?: y describelo| y describela)?$").matchEntire(visual)
         if (search != null) {
             val target = search.groupValues[1].trim()

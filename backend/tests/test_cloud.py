@@ -17,7 +17,7 @@ APPROVED_CLOUD = {
     "LLMIA_FIREBASE_PROJECT_ID": "proyectopersonal-480420",
     "LLMIA_CLOUD_PROJECT": "proyectopersonal-480420",
     "LLMIA_IMAGE_BUCKET": "proyectopersonal-480420-llmia-images",
-    "LLMIA_FIRESTORE_DATABASE": "llmia-demo",
+    "LLMIA_FIRESTORE_DATABASE": "llmia-v2",
     "LLMIA_ALLOWED_UIDS": "operator",
     "LLMIA_DEVICE_TOKEN": "temporary-test-device-token",
 }
@@ -25,13 +25,14 @@ APPROVED_CLOUD = {
 
 class CloudConfigurationTests(TestCase):
     def test_cloud_run_refuses_local_defaults(self):
-        with patch.dict("os.environ", {"K_SERVICE": "llmia-demo"}, clear=True):
+        with patch.dict("os.environ", {"K_SERVICE": "llmia-v2"}, clear=True):
             with self.assertRaisesRegex(RuntimeError, "Cloud Run requiere Firebase"):
                 create_app()
 
     def test_cloud_refuses_wrong_project_database_bucket_and_emulators(self):
         for changes in (
             {"LLMIA_FIRESTORE_DATABASE": "(default)"},
+            {"LLMIA_FIRESTORE_DATABASE": "llmia-demo"},
             {"LLMIA_FIRESTORE_DATABASE": "smartroute"},
             {"LLMIA_FIRESTORE_DATABASE": "gestioncitas"},
             {"LLMIA_IMAGE_BUCKET": "proyectopersonal-480420.firebasestorage.app"},
@@ -54,9 +55,12 @@ class CloudConfigurationTests(TestCase):
             self.skipTest("Install requirements-cloud.txt to exercise the Google SDK adapters.")
         with patch.dict("os.environ", APPROVED_CLOUD, clear=True):
             with patch("llmia.cloud.cloud_adapters", return_value=(MemoryObservations(), MemoryImages())) as cloud:
-                with patch("llmia.http.firebase_verifier", return_value=lambda _: ("operator", True)) as firebase:
-                    app = create_app()
-            cloud.assert_called_once_with("proyectopersonal-480420", "llmia-demo",
+                with patch("google.cloud.storage.Client") as storage_client:
+                    with patch("llmia.http.firebase_verifier", return_value=lambda _: ("operator", True)) as firebase:
+                        app = create_app()
+                    storage_client.assert_called_once_with(project="proyectopersonal-480420")
+                    storage_client.return_value.bucket.assert_called_once_with("proyectopersonal-480420-llmia-images")
+            cloud.assert_called_once_with("proyectopersonal-480420", "llmia-v2",
                                           "proyectopersonal-480420-llmia-images")
             firebase.assert_called_once_with("proyectopersonal-480420", frozenset({"operator"}))
             with TestClient(app) as client:
@@ -130,7 +134,7 @@ class CloudAdapterTests(TestCase):
         blob.download_as_bytes.return_value = jpeg
         store.put("abc", jpeg)
         self.assertEqual(store.get("abc"), jpeg)
-        bucket.blob.assert_called_with("observations/abc.jpg")
+        bucket.blob.assert_called_with("v2/observations/abc.jpg")
         blob.upload_from_string.assert_called_once_with(
             jpeg, content_type="image/jpeg", if_generation_match=0, timeout=8, retry=None,
         )

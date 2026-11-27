@@ -10,6 +10,11 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import java.util.Locale
+import android.speech.tts.UtteranceProgressListener
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
+import kotlin.coroutines.resume
+import java.util.UUID
 
 /**
  * Voz del sistema Android: reconocimiento (SpeechRecognizer) y síntesis (TextToSpeech).
@@ -110,6 +115,38 @@ class Voice(private val context: Context) {
 
     fun speak(text: String) {
         if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "llmia")
+    }
+
+    /** Wait for the actual utterance completion, not an estimated duration. */
+    suspend fun narrate(text: String): Boolean = withTimeout(90_000L) {
+        suspendCancellableCoroutine { continuation ->
+            val engine = tts
+            if (!ttsReady || engine == null) {
+                continuation.resume(false)
+                return@suspendCancellableCoroutine
+            }
+            val id = UUID.randomUUID().toString()
+            val listener = object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) {
+                    if (utteranceId == id && continuation.isActive) continuation.resume(true)
+                }
+                @Deprecated("Legacy TTS callback")
+                override fun onError(utteranceId: String?) {
+                    if (utteranceId == id && continuation.isActive) continuation.resume(false)
+                }
+                override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                    if (utteranceId == id && continuation.isActive) continuation.resume(false)
+                }
+            }
+            if (engine.setOnUtteranceProgressListener(listener) != TextToSpeech.SUCCESS) {
+                continuation.resume(false)
+                return@suspendCancellableCoroutine
+            }
+            continuation.invokeOnCancellation { engine.stop() }
+            if (engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, id) != TextToSpeech.SUCCESS &&
+                continuation.isActive) continuation.resume(false)
+        }
     }
 
     fun shutdown() {

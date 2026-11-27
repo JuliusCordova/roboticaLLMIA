@@ -22,8 +22,8 @@ android {
         applicationId = "pe.edu.upn.llmia.v2"
         minSdk = 29
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.5.0"
+        versionCode = 7
+        versionName = "0.5.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("String", "CLOUD_ORIGIN",

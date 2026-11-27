@@ -52,3 +52,19 @@ jobs:
           name: llmia2-android-qa-reports
           path: android/app/build/reports/
           if-no-files-found: ignore
+  container:
+    if: github.event_name != 'pull_request' || github.head_ref == 'feature/v0.5-multimedia-presentation'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build QA image with synthetic Firebase configuration
+        run: |
+          docker build -t llmia-v2:qa \
+            --build-arg VITE_FIREBASE_API_KEY=qa-placeholder \
+            --build-arg VITE_FIREBASE_AUTH_DOMAIN=qa.invalid \
+            --build-arg VITE_FIREBASE_PROJECT_ID=qa-placeholder \
+            --build-arg VITE_FIREBASE_APP_ID=qa-placeholder .
+      - name: Verify image contents and non-root runtime
+        run: |
+          docker run --rm --entrypoint sh llmia-v2:qa -c 'test "$(id -u)" = 10001 && test -f /app/web/index.html && python -c "from llmia.http import CLOUD_DATABASE; assert CLOUD_DATABASE == \"llmia-v2\""'

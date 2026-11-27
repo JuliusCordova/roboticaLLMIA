@@ -69,6 +69,19 @@ class CloudApi(
         result.length() == 1 && result.optString("intent") == "PRESENT_TEAM"
     }
 
+    suspend fun selfConversation(operatorToken: String, text: String): Pair<String, String?> = withContext(Dispatchers.IO) {
+        require(text.trim().length in 1..500)
+        val (code, body) = Http.exchange(net(), "$origin/api/v1/conversation/self", "POST",
+            "Bearer $operatorToken", JSONObject().put("text", text).toString().toByteArray(Charsets.UTF_8),
+            "application/json", maxResponse = 4096, readMs = 18_000)
+        if (code != 200) throw CloudHttpException(code, "self_conversation")
+        val result = JSONObject(body.toString(Charsets.UTF_8))
+        val intent = result.getString("intent")
+        val answer = if (result.isNull("answer")) null else result.getString("answer")
+        require(result.length() == 2 && (answer == null || answer.length in 1..700))
+        intent to answer
+    }
+
     suspend fun teamPresentation(operatorToken: String): TeamPresentation = withContext(Dispatchers.IO) {
         val bearer = "Bearer $operatorToken"
         val (metadataCode, metadata) = Http.exchange(net(), "$origin/api/v1/presentation/team",

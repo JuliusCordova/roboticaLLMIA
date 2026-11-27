@@ -27,4 +27,9 @@ El operador confirmó explícitamente que la respuesta de identidad aparece y se
 | Presenta a tus creadores | PASS |
 
 ## Alcance y reservas
-Catálogo de 12 categorías, respuestas aprobadas y clasificación Gemini; no chatbot general. Cámara y motores tienen categorías adicionales con pruebas unitarias, no aceptación individual reportada. Sin cambios de firmware ni diseño visual. No merge ni despliegue del servicio original. Pendientes: pruebas físicas, micrófono, variantes semánticas y casos negativos reales, hash y copia de distribución del APK actualizado. No se adjuntaron capturas ni logs instrumentados de la sesión funcional. No se confirmó independientemente el SHA del checkout Windows en la salida compartida.
+Catálogo de 12 categorías, respuestas aprobadas y clasificación Gemini; no chatbot general. Cámara y motores tienen categorías adicionales con pruebas unitarias, no aceptación individual reportada. Sin cambios de firmware ni diseño visual. No merge ni despliegue del servicio original. Pendientes: pruebas físicas, micrófono, variantes semánticas y casos negativos reales, verificación independiente del APK de distribución. No se adjuntaron capturas ni logs instrumentados de la sesión funcional. No se confirmó independientemente el SHA del checkout Windows en la salida compartida.
+
+## APK de distribución
+Copia local confirmada por el operador: `entregables/LLMia2-v0.5.1.apk`.
+SHA-256 reportado: `B1CD74F45C140E203BADA5EF96793EA84640C99942386381DE479ABA978503A5`.
+El binario no se ha subido a GitHub; pendiente prueba en Android físico.

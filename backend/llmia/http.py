@@ -125,6 +125,20 @@ def http_app(
         except Exception:
             return {"intent": "UNKNOWN"}
 
+    @app.post("/api/v1/conversation/self")
+    def self_conversation(body: dict, _owner: str = Depends(operator)):
+        from .self_knowledge import ANSWERS
+        text = body.get("text")
+        if set(body) != {"text"} or not isinstance(text, str) or not 1 <= len(text.strip()) <= 500:
+            raise HTTPException(422, "invalid_intent_text")
+        intent = "UNKNOWN"
+        if isinstance(use_case.describer, VertexGeminiDescriber):
+            try:
+                intent = use_case.describer.self_intent(text)
+            except Exception:
+                pass
+        return {"intent": intent, "answer": ANSWERS.get(intent)}
+
     @app.get("/api/v1/presentation/team")
     def presentation_team(_owner: str = Depends(operator)):
         from .presentation import team_presentation

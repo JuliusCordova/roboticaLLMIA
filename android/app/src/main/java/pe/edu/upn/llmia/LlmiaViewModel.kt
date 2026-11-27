@@ -421,7 +421,12 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         _ui.update { it.copy(presenting = true) }
-        stopWheels()
+        if (s.robot == LinkState.ON || s.moving != null) {
+            stopWheels()
+        } else {
+            voice.cancelListening()
+            _ui.update { it.copy(listening = false, partial = "", level = 0f) }
+        }
         presentationJob = viewModelScope.launch {
             try {
                 motionJob?.join()

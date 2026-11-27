@@ -416,8 +416,8 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
             reply("Espera a que termine la captura antes de presentar al equipo.")
             return
         }
-        if (s.operator == null || s.robot != LinkState.ON) {
-            reply("Conecta el robot e inicia sesión para presentar al equipo.")
+        if (s.operator == null) {
+            reply("Inicia sesión para presentar al equipo.")
             return
         }
         _ui.update { it.copy(presenting = true) }
@@ -425,7 +425,9 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         presentationJob = viewModelScope.launch {
             try {
                 motionJob?.join()
-                check(robot.stop()) { "STOP sin confirmación" }
+                if (s.robot == LinkState.ON || _ui.value.robot == LinkState.ON) {
+                    check(robot.stop()) { "STOP sin confirmación" }
+                }
                 val team = cloud.teamPresentation(auth.idToken())
                 val photo = withContext(Dispatchers.Default) { decode(team.jpeg) }
                     ?: error("Fotografía inválida")

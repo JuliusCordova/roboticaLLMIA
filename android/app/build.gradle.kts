@@ -27,7 +27,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("String", "CLOUD_ORIGIN",
-            "\"${local("llmia.cloudOrigin", "https://llmia-demo-913797829604.us-central1.run.app")}\"")
+            "\"${local("llmia.cloudOrigin", "https://llmia-v2-913797829604.us-central1.run.app")}\"")
         buildConfigField("String", "ROBOT_ID", "\"${local("llmia.robotId", "llmia-01")}\"")
         buildConfigField("String", "FIREBASE_API_KEY", "\"${local("llmia.firebase.apiKey")}\"")
         buildConfigField("String", "FIREBASE_APP_ID", "\"${local("llmia.firebase.appId")}\"")

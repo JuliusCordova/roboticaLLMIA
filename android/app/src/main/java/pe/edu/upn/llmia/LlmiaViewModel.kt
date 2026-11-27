@@ -395,12 +395,18 @@ class LlmiaViewModel(app: Application) : AndroidViewModel(app) {
         }
         intentJob = viewModelScope.launch {
             try {
-                val present = cloud.presentationIntent(auth.idToken(), text)
+                val (intent, answer) = cloud.selfConversation(auth.idToken(), text)
                 ensureActive()
                 val current = _ui.value
                 if (!foreground || current.operator != s.operator || current.moving != null ||
                     current.searching || current.analyzing || current.presenting) return@launch
-                if (present) presentTeam() else reply("No entendí la orden.")
+                when {
+                    intent == "PRESENT_TEAM" && answer == null -> presentTeam()
+                    intent in setOf("IDENTITY", "PURPOSE", "COMPONENTS", "ARCHITECTURE",
+                        "AI_TECHNOLOGY", "CAPABILITIES", "LIMITATIONS", "CAMERA", "MOTORS",
+                        "SERVO", "SENSOR", "POWER") && !answer.isNullOrBlank() -> reply(answer)
+                    else -> reply("No entendí la orden.")
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
